@@ -319,8 +319,10 @@ class IosHealthKitAdapter(private val simulated: Boolean = false) : HealthSyncPo
     /** Asks for writing routes once, where walks are already saved; the sheet lists only what is new. */
     private suspend fun requestRouteAccess() {
         if (authorizationStatus() != HealthAuthorization.Granted) return
+        // HealthKit throws, which Kotlin cannot catch, when routes are asked for without the workouts they belong to.
+        val routes = setOf(workoutType, routeType)
         val status = suspendCancellableCoroutine { cont ->
-            store.getRequestStatusForAuthorizationToShareTypes(setOf(routeType), readTypes = setOf(routeType)) { status, _ -> cont.resume(status) }
+            store.getRequestStatusForAuthorizationToShareTypes(routes, readTypes = routes) { status, _ -> cont.resume(status) }
         }
         if (status == HKAuthorizationRequestStatusShouldRequest) requestAuthorization()
     }
