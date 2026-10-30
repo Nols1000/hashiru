@@ -1,0 +1,63 @@
+# The relay. It keeps shares in memory only, so there is exactly one; a restart drops them until the phones
+# open theirs again, which viewers wait for.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hashiru-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hashiru-server
+  template:
+    metadata:
+      labels:
+        app: hashiru-server
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: hashiru-server
+          ports:
+            - containerPort: 8080
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: -XX:MaxRAMPercentage=75
+          resources:
+            requests:
+              cpu: 10m
+              memory: 192Mi
+            limits:
+              memory: 384Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hashiru-server
+spec:
+  selector:
+    app: hashiru-server
+  ports:
+    - port: 80
+      targetPort: 8080

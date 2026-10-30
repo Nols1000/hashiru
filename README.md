@@ -1,4 +1,4 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Server.
+This is a Kotlin Multiplatform project targeting Android, iOS, Web, Server.
 
 * [/app/iosApp](./app/iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
@@ -9,6 +9,11 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Server.
 
 * [/app/wearApp](./app/wearApp/src/main) is the Wear OS companion. It shares the phone app's package name and
   signing key, which the Wear OS Data Layer requires, and uses sharedLogic for the wire format.
+
+* [/app/webApp](./app/webApp/src) is the web viewer for live shares, a React application. It uses the Kotlin/JS
+  library produced by the sharedLogic module, which follows the share and decrypts it; the React code only renders.
+  It is built for a static host that passes `/api` on to the relay ([/server](./server/src/main/kotlin)) on the same
+  origin, as the cluster's gateway does (see [Deployment](#deployment)). Set `VITE_PMTILES_URL` to a PMTiles extract for a basemap; without it, routes show on a plain background.
 
 * [/app/sharedLogic](./app/sharedLogic/src) is for the code that will be shared between app targets in the project.
   The most important subfolder is [commonMain](./app/sharedLogic/src/commonMain/kotlin). If preferred, you
@@ -40,6 +45,10 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
 - Android app: `./gradlew :app:androidApp:assembleDebug`
 - Wear OS app: `./gradlew :app:wearApp:assembleDebug`
 - Server: `./gradlew :server:run`
+- Web viewer: install [Node.js](https://nodejs.org/en/download/) (with npm), which Kotlin/JS also uses instead of
+  downloading its own. Build the shared Kotlin/JS code with `./gradlew :app:sharedLogic:jsBrowserDevelopmentLibraryDistribution`,
+  then run `npm install --ignore-scripts` and `npm run start`. The dev server proxies `/api` to the server on port 8080.
+  The IDE's `webApp` run configuration does all of this. `npm run build` puts the static site in `app/webApp/dist`.
 - iOS app: open the [/app/iosApp](./app/iosApp) directory in Xcode and run it from there.
 
 ### Running tests
@@ -48,6 +57,7 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
 
 - Android tests: `./gradlew :app:sharedUI:testAndroidHostTest :app:sharedLogic:testAndroidHostTest`
 - Server tests: `./gradlew :server:test`
+- JS tests (on Node): `./gradlew :app:sharedLogic:jsNodeTest`
 - iOS tests: `./gradlew :app:sharedLogic:iosSimulatorArm64Test`
 
 ### CI/CD
@@ -90,6 +100,22 @@ ships the Linux Android build tools for x86_64 only and iOS needs Xcode.
    3. Run `./gradlew bootstrapTestFlight -PascKeyPath=AuthKey_XXX.p8 -PascKeyId=XXX -PascIssuerId=YYY`.
 
 Both bootstrap tasks are safe to run again.
+
+### Deployment
+
+The relay and the web viewer run on the destiny-ascension Kubernetes cluster at https://hashiru.tw-esport.de, with the viewer
+at `/` and the relay at `/api`. [/deploy](./deploy) describes them, and Flux on the cluster applies whatever is on `main`.
+The cluster's side lives in the `destiny-ascension-infra` repository: Flux itself, the `hashiru` namespace and the host name.
+
+[Deploy](.github/workflows/deploy.yml) runs for every `vX.Y.Z` tag, or by hand. It publishes both images for arm64 to
+`ghcr.io/nols1000/hashiru-server` and `ghcr.io/nols1000/hashiru-web`, then commits their digests to
+[deploy/kustomization.yaml](./deploy/kustomization.yaml) on `main`, which deploys them within about 5 minutes. Reverting that commit rolls back.
+The relay keeps shares only in memory, so a deploy drops all live shares. Phones open theirs again, and viewers wait for that.
+
+To build the images locally, run `./gradlew :server:publishImageToLocalRegistry` (it builds `hashiru-server`). Build the viewer
+as above, then run `docker build app/webApp`.
+
+One-time setup: after the first run, make both packages public, so the cluster can pull them without credentials.
 
 ---
 

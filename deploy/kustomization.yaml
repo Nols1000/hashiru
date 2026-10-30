@@ -1,0 +1,15 @@
+# What Flux applies to the destiny-ascension cluster (../destiny-ascension-infra), into namespace `hashiru`.
+# `${HASHIRU_HOST}` comes from the cluster. The Deploy workflow commits the digests below, which deploys them.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - server.yaml
+  - web.yaml
+  - route.yaml
+images:
+  - name: hashiru-server
+    newName: ghcr.io/nols1000/hashiru-server
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: hashiru-web
+    newName: ghcr.io/nols1000/hashiru-web
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
