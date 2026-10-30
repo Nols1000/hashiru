@@ -1,0 +1,576 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "* Estimated for 70 kg" : {
+
+    },
+    "%@ KM" : {
+
+    },
+    "%@/%@ KM" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@/%2$@ KM"
+          }
+        }
+      }
+    },
+    "%d BPM AVG" : {
+
+    },
+    "Access is off. Walks stay on this iPhone." : {
+
+    },
+    "Active Calories" : {
+
+    },
+    "Active Calories*" : {
+
+    },
+    "Active Kilocalories" : {
+
+    },
+    "Add your treadmill walks with distance, steps and calories to your Activity rings, and see your sessions and trends here." : {
+
+    },
+    "Age and Sex" : {
+
+    },
+    "Allow Bluetooth Access" : {
+
+    },
+    "App Not Installed" : {
+
+    },
+    "Apple Health" : {
+
+    },
+    "Apple Health didn’t answer." : {
+
+    },
+    "Apple Health is not available on this device." : {
+
+    },
+    "Apple Watch" : {
+
+    },
+    "Attach WalkingPad" : {
+
+    },
+    "Average Pace" : {
+
+    },
+    "avg. %@" : {
+
+    },
+    "Avg. Heart Rate" : {
+
+    },
+    "Avg. Pace" : {
+
+    },
+    "Avoid Counting Steps Twice" : {
+
+    },
+    "Belt Didn’t Stop" : {
+
+    },
+    "Belt Running" : {
+
+    },
+    "Birth Year" : {
+
+    },
+    "Bluetooth Is Off" : {
+
+    },
+    "Body Weight" : {
+
+    },
+    "Born %@" : {
+
+    },
+    "BPM" : {
+
+    },
+    "Calories use an estimated weight of 70 kg." : {
+
+    },
+    "Calories use your heart rate." : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Code %@" : {
+
+    },
+    "Coming Soon" : {
+
+    },
+    "Connect" : {
+
+    },
+    "Connect Apple Health" : {
+
+    },
+    "Connected" : {
+
+    },
+    "Connected Devices" : {
+
+    },
+    "Connecting…" : {
+
+    },
+    "Couldn’t Connect" : {
+
+    },
+    "Couldn’t Load Your Walks" : {
+
+    },
+    "Couldn’t Save to Apple Health" : {
+
+    },
+    "Couldn’t start the belt" : {
+
+    },
+    "Couldn’t Stop the Belt" : {
+
+    },
+    "Counting with iPhone" : {
+
+    },
+    "Counting with your iPhone" : {
+
+    },
+    "Day" : {
+
+    },
+    "Delete this walk?" : {
+
+    },
+    "Delete Walk" : {
+
+    },
+    "Details: %@" : {
+
+    },
+    "Disconnect" : {
+
+    },
+    "Dismiss" : {
+
+    },
+    "Distance" : {
+
+    },
+    "Distance per Day" : {
+
+    },
+    "Done" : {
+
+    },
+    "Duration" : {
+
+    },
+    "End Walk" : {
+
+    },
+    "End Workout" : {
+
+    },
+    "Enter a four-digit year, like 1985." : {
+
+    },
+    "Enter a weight from 20 to 300 kg." : {
+
+    },
+    "Faster" : {
+
+    },
+    "Female" : {
+
+    },
+    "Forget WalkingPad" : {
+
+    },
+    "Forget WalkingPad?" : {
+
+    },
+    "Forget your WalkingPad?" : {
+
+    },
+    "From Apple Health" : {
+
+    },
+    "Goal" : {
+
+    },
+    "hashiru needs Bluetooth to connect to a WalkingPad." : {
+
+    },
+    "hashiru on Apple Watch measures your heart rate during workouts." : {
+
+    },
+    "hashiru uses Bluetooth only to talk to your WalkingPad." : {
+
+    },
+    "Heart Rate" : {
+
+    },
+    "Heart Rate · %@" : {
+
+    },
+    "Heart Rate · Watch Away" : {
+
+    },
+    "Heart rate chart" : {
+
+    },
+    "Heart Rate from Your Watch" : {
+
+    },
+    "Hold to Unlock" : {
+
+    },
+    "Indoor Run" : {
+
+    },
+    "Indoor Walk" : {
+
+    },
+    "Install hashiru on Apple Watch from the Watch app on your iPhone." : {
+
+    },
+    "It is removed from Apple Health." : {
+
+    },
+    "It is removed from hashiru and Apple Health." : {
+
+    },
+    "Kept on this iPhone only." : {
+
+    },
+    "KM/H" : {
+
+    },
+    "Last workout: %@ km · %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last workout: %1$@ km · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "Lock Controls" : {
+
+    },
+    "Lost the WalkingPad. Your walk is paused; check that the pad is on and nearby." : {
+
+    },
+    "Male" : {
+
+    },
+    "Max. Heart Rate" : {
+
+    },
+    "Motion & Fitness Is Off" : {
+
+    },
+    "No Walks" : {
+
+    },
+    "No Walks Yet" : {
+
+    },
+    "No Watch" : {
+
+    },
+    "None" : {
+
+    },
+    "Not available on this device." : {
+
+    },
+    "Not Connected" : {
+
+    },
+    "Not Counting" : {
+
+    },
+    "Not Now" : {
+
+    },
+    "Not Paired" : {
+
+    },
+    "Not saved yet. Connect Apple Health to add this walk." : {
+
+    },
+    "Not Set" : {
+
+    },
+    "OK" : {
+
+    },
+    "On your WalkingPad" : {
+
+    },
+    "Open" : {
+
+    },
+    "Open Settings" : {
+
+    },
+    "Outdoor Run" : {
+
+    },
+    "Outdoor Walk" : {
+
+    },
+    "Pace" : {
+
+    },
+    "Pair Again" : {
+
+    },
+    "Pair WalkingPad" : {
+
+    },
+    "Pair Your WalkingPad Again" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Paused" : {
+
+    },
+    "Press play to start the belt and the walk." : {
+
+    },
+    "Press play to start the walk." : {
+
+    },
+    "Press the button on the WalkingPad or use its remote." : {
+
+    },
+    "Profile" : {
+
+    },
+    "Reconnecting to the WalkingPad…" : {
+
+    },
+    "Reconnecting…" : {
+
+    },
+    "Resume" : {
+
+    },
+    "Save" : {
+
+    },
+    "Save Walks to Apple Health" : {
+
+    },
+    "Saved to Apple Health" : {
+
+    },
+    "Saves to Apple Health when you unlock your iPhone." : {
+
+    },
+    "Saving to Apple Health…" : {
+
+    },
+    "Sessions" : {
+
+    },
+    "Set Weight" : {
+
+    },
+    "Settings" : {
+
+    },
+    "Sex" : {
+
+    },
+    "Show More" : {
+
+    },
+    "Slower" : {
+
+    },
+    "Speed" : {
+
+    },
+    "Speed change didn’t reach the WalkingPad" : {
+
+    },
+    "Start" : {
+
+    },
+    "Status" : {
+
+    },
+    "Steps" : {
+
+    },
+    "Stop Connecting" : {
+
+    },
+    "Summary" : {
+
+    },
+    "Switch it on and stay within a few metres, then try again." : {
+
+    },
+    "The device you chose doesn’t respond like a WalkingPad. Pair yours again." : {
+
+    },
+    "This Device Has No Bluetooth" : {
+
+    },
+    "This iPhone can’t record this workout. Attach a WalkingPad to walk indoors." : {
+
+    },
+    "This iPhone no longer recognizes it, for example after restoring from a backup." : {
+
+    },
+    "This Isn’t a WalkingPad" : {
+
+    },
+    "This Week" : {
+
+    },
+    "Time" : {
+
+    },
+    "Today" : {
+
+    },
+    "Total Kilocalories" : {
+
+    },
+    "Trends" : {
+
+    },
+    "Try Again" : {
+
+    },
+    "Turn it on in Control Center or Settings to find your WalkingPad." : {
+
+    },
+    "Used for calories and heart-rate zones when Apple Health has none." : {
+
+    },
+    "Used to estimate calories when Apple Health has no weight for you." : {
+
+    },
+    "Used with heart rate from your Apple Watch for calories and heart-rate zones." : {
+
+    },
+    "Waiting for Watch" : {
+
+    },
+    "Walking Time" : {
+
+    },
+    "Walking Time per Day" : {
+
+    },
+    "WalkingPad" : {
+
+    },
+    "WalkingPad and Apple Watch" : {
+
+    },
+    "WalkingPad Lost" : {
+
+    },
+    "WalkingPad Not Found" : {
+
+    },
+    "WalkingPad running" : {
+
+    },
+    "WalkingPad stopped" : {
+
+    },
+    "Walks" : {
+
+    },
+    "Watch Away" : {
+
+    },
+    "Weekly Distance" : {
+
+    },
+    "Weekly goal" : {
+
+    },
+    "Weight in kg" : {
+
+    },
+    "With a WalkingPad, hashiru controls its speed and counts from the belt. Without one, your iPhone counts your steps and distance." : {
+
+    },
+    "Without a WalkingPad, hashiru counts your steps and distance with your iPhone. Turn on Motion & Fitness for hashiru in Settings, or attach a WalkingPad." : {
+
+    },
+    "Workout" : {
+
+    },
+    "Workout Details" : {
+
+    },
+    "Workout Not Available" : {
+
+    },
+    "Workout Not Saved" : {
+
+    },
+    "Workout Time" : {
+
+    },
+    "Workouts shorter than %d seconds or %d m aren’t saved." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Workouts shorter than %1$d seconds or %2$d m aren’t saved."
+          }
+        }
+      }
+    },
+    "Yesterday" : {
+
+    },
+    "You need to pair it again to walk with it." : {
+
+    },
+    "You’ll need to pair it again to use it with hashiru." : {
+
+    },
+    "Your iPhone counts steps too. In the Health app, open Steps › Data Sources & Access, tap Edit and move hashiru to the top." : {
+
+    },
+    "Your iPhone stopped counting. The walk is paused." : {
+
+    },
+    "Your last 7 days compared with the last 90." : {
+
+    },
+    "Your WalkingPad didn’t answer. Switch it off and on again, then try again." : {
+
+    },
+    "Your walks appear here once they are in Apple Health. If walks are missing, check that hashiru may read workouts in Settings › Health › Data Access & Devices." : {
+
+    }
+  },
+  "version" : "1.0"
+}

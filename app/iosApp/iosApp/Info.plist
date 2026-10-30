@@ -2,7 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSHealthShareUsageDescription</key>
+	<string>hashiru reads your walks, with their distance, steps, calories and heart rate, to show your sessions and trends, and your latest body weight, your age and your sex to estimate the calories of your walks and your heart-rate zones.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>hashiru saves your walks with distance, steps and calories to Apple Health.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>hashiru counts your steps and distance during a walk without a WalkingPad.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSAccessorySetupKitSupports</key>
+	<array>
+		<string>Bluetooth</string>
+	</array>
+	<key>NSAccessorySetupBluetoothServices</key>
+	<array>
+		<string>0000FE00-0000-1000-8000-00805F9B34FB</string>
+	</array>
+	<key>NSAccessorySetupBluetoothCompanyIdentifiers</key>
+	<array>
+		<string>0060</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>workout-processing</string>
+	</array>
 </dict>
 </plist>
