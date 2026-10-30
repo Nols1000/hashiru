@@ -101,15 +101,42 @@ object CourseGeometry {
         return points.filterIndexed { i, _ -> keep[i] }
     }
 
-    /** Simplifies with growing tolerance until at most [maxPoints] remain, for small screens and slow links. */
+    /**
+     * Simplifies as [simplify] does, with the tolerance raised just enough that at most [maxPoints] remain, for
+     * small screens and slow links. One pass: each point gets the tolerance it would be dropped at, never more
+     * than the point it was split off from, so keeping the most important points matches a raised tolerance.
+     */
     fun simplify(points: List<CoursePoint>, toleranceM: Double, maxPoints: Int): List<CoursePoint> {
-        var tolerance = toleranceM
-        var result = simplify(points, tolerance)
-        while (result.size > maxPoints) {
-            tolerance *= 2
-            result = simplify(points, tolerance)
+        require(maxPoints >= 2) { "A course keeps at least its start and end" }
+        if (points.size < 3) return points
+        val importance = DoubleArray(points.size)
+        importance[0] = Double.POSITIVE_INFINITY
+        importance[points.lastIndex] = Double.POSITIVE_INFINITY
+        val stack = ArrayDeque<Triple<Int, Int, Double>>()
+        stack.addLast(Triple(0, points.lastIndex, Double.POSITIVE_INFINITY))
+        while (stack.isNotEmpty()) {
+            val (first, last, cap) = stack.removeLast()
+            var farthest = -1
+            var farthestM = toleranceM
+            for (i in first + 1 until last) {
+                val d = project(points[i].lat, points[i].lon, points[first], points[last]).meters
+                if (d > farthestM) {
+                    farthest = i
+                    farthestM = d
+                }
+            }
+            if (farthest >= 0) {
+                val kept = minOf(farthestM, cap)
+                importance[farthest] = kept
+                stack.addLast(Triple(first, farthest, kept))
+                stack.addLast(Triple(farthest, last, kept))
+            }
         }
-        return result
+        val kept = points.indices.filter { importance[it] > 0.0 }
+        if (kept.size <= maxPoints) return kept.map(points::get)
+        // The tolerance that drops the point just past the limit; ties go with it, as at that tolerance.
+        val tolerance = kept.map { importance[it] }.sortedDescending()[maxPoints]
+        return kept.filter { importance[it] > tolerance }.map(points::get)
     }
 
     private fun Double.rad() = this * PI / 180
