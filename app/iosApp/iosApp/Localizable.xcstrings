@@ -4,7 +4,23 @@
     "* Estimated for 70 kg" : {
 
     },
+    "%@ · %d m up" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$d m up"
+          }
+        }
+      }
+    },
     "%@ KM" : {
+
+    },
+    "%@ km done" : {
+
+    },
+    "%@ km to Go" : {
 
     },
     "%@/%@ KM" : {
@@ -18,6 +34,9 @@
       }
     },
     "%d BPM AVG" : {
+
+    },
+    "%d m away" : {
 
     },
     "Access is off. Walks stay on this iPhone." : {
@@ -36,6 +55,9 @@
 
     },
     "Age and Sex" : {
+
+    },
+    "All Routes…" : {
 
     },
     "Allow Bluetooth Access" : {
@@ -74,6 +96,9 @@
     "Avoid Counting Steps Twice" : {
 
     },
+    "Back on route." : {
+
+    },
     "Belt Didn’t Stop" : {
 
     },
@@ -99,6 +124,9 @@
 
     },
     "Calories use your heart rate." : {
+
+    },
+    "Can’t Import Route" : {
 
     },
     "Cancel" : {
@@ -149,6 +177,12 @@
     "Day" : {
 
     },
+    "Delete Route" : {
+
+    },
+    "Delete this route?" : {
+
+    },
     "Delete this walk?" : {
 
     },
@@ -174,6 +208,9 @@
 
     },
     "Duration" : {
+
+    },
+    "Elevation Gain" : {
 
     },
     "End Walk" : {
@@ -215,7 +252,13 @@
     "hashiru on Apple Watch measures your heart rate during workouts." : {
 
     },
+    "hashiru reads routes from GPX and FIT files." : {
+
+    },
     "hashiru uses Bluetooth only to talk to your WalkingPad." : {
+
+    },
+    "Head to the Route" : {
 
     },
     "Heart Rate" : {
@@ -234,6 +277,15 @@
 
     },
     "Hold to Unlock" : {
+
+    },
+    "Import" : {
+
+    },
+    "Import a GPX or FIT file from Files, or open one in hashiru from Mail, Safari or another app." : {
+
+    },
+    "Import Route" : {
 
     },
     "Indoor Run" : {
@@ -267,6 +319,9 @@
         }
       }
     },
+    "Location Is Off" : {
+
+    },
     "Lock Controls" : {
 
     },
@@ -276,10 +331,19 @@
     "Male" : {
 
     },
+    "Map" : {
+
+    },
     "Max. Heart Rate" : {
 
     },
     "Motion & Fitness Is Off" : {
+
+    },
+    "No Route" : {
+
+    },
+    "No Routes" : {
 
     },
     "No Walks" : {
@@ -315,6 +379,12 @@
     "Not Set" : {
 
     },
+    "Off Route" : {
+
+    },
+    "Off route, %d metres away." : {
+
+    },
     "OK" : {
 
     },
@@ -331,6 +401,9 @@
 
     },
     "Outdoor Walk" : {
+
+    },
+    "Outdoor workouts use your location to map your route and measure your distance. Allow location access for hashiru in Settings." : {
 
     },
     "Pace" : {
@@ -354,7 +427,7 @@
     "Press play to start the belt and the walk." : {
 
     },
-    "Press play to start the walk." : {
+    "Press play to start the workout." : {
 
     },
     "Press the button on the WalkingPad or use its remote." : {
@@ -369,7 +442,25 @@
     "Reconnecting…" : {
 
     },
+    "Remaining" : {
+
+    },
+    "Remaining · Off Route" : {
+
+    },
     "Resume" : {
+
+    },
+    "Route" : {
+
+    },
+    "Route Complete" : {
+
+    },
+    "Route map" : {
+
+    },
+    "Routes" : {
 
     },
     "Save" : {
@@ -397,6 +488,9 @@
 
     },
     "Sex" : {
+
+    },
+    "Shape" : {
 
     },
     "Show More" : {
@@ -430,6 +524,12 @@
 
     },
     "The device you chose doesn’t respond like a WalkingPad. Pair yours again." : {
+
+    },
+    "The file has no route in it." : {
+
+    },
+    "The file is damaged." : {
 
     },
     "This Device Has No Bluetooth" : {
@@ -553,13 +653,16 @@
     "You need to pair it again to walk with it." : {
 
     },
+    "You reached the finish." : {
+
+    },
     "You’ll need to pair it again to use it with hashiru." : {
 
     },
     "Your iPhone counts steps too. In the Health app, open Steps › Data Sources & Access, tap Edit and move hashiru to the top." : {
 
     },
-    "Your iPhone stopped counting. The walk is paused." : {
+    "Your iPhone stopped counting. The workout is paused." : {
 
     },
     "Your last 7 days compared with the last 90." : {
