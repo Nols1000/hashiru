@@ -1,0 +1,17 @@
+{
+  "name": "hashiru",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "dev",
+  // The upload keystore lives on the host so it survives container rebuilds.
+  "initializeCommand": "mkdir -p \"${localEnv:HOME}/.hashiru-secrets\"",
+  "mounts": [
+    "source=hashiru-gradle,target=/home/dev/.gradle,type=volume",
+    "source=hashiru-android-sdk,target=/home/dev/android-sdk,type=volume",
+    "source=hashiru-gcloud,target=/home/dev/.config/gcloud,type=volume",
+    "source=hashiru-gh,target=/home/dev/.config/gh,type=volume",
+    "source=${localEnv:HOME}/.hashiru-secrets,target=/home/dev/.hashiru-secrets,type=bind"
+  ],
+  "postCreateCommand": "./gradlew --version"
+}
