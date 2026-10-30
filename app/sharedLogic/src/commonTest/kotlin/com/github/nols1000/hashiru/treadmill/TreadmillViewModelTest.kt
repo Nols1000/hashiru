@@ -285,4 +285,24 @@ class TreadmillViewModelTest {
         runCurrent()
         assertNull(viewModel.uiState.value.workout.summary)
     }
+
+    @Test
+    fun thePaceHoldsBetweenTheDistanceSteps() = runTest(dispatcher) {
+        val transport = MockTransportAdapter(targetSpeedTenths = 30, rampStepTenths = 30, timeSource = testScheduler.timeSource)
+        val viewModel = viewModelFor(transport)
+        viewModel.connect()
+        advanceTimeBy(600)
+        viewModel.toggleBelt()
+        advanceTimeBy(120_000)
+
+        // At 3 km/h the pad reports 10 m every 12 s; the pace changes only with them and stays near 20:00/km.
+        var last = viewModel.uiState.value.workout
+        repeat(60) {
+            advanceTimeBy(1_000)
+            val now = viewModel.uiState.value.workout
+            if (now.distanceMeters == last.distanceMeters) assertEquals(last.paceSecondsPerKm, now.paceSecondsPerKm)
+            assertTrue(now.paceSecondsPerKm!! in 1180..1260, "pace ${now.paceSecondsPerKm}")
+            last = now
+        }
+    }
 }

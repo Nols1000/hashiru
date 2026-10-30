@@ -282,6 +282,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "hashiru reads your walks, with their distance, steps, calories and heart rate, to show your sessions and trends, and your latest body weight, your age and your sex to estimate the calories of your walks and your heart-rate zones.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "hashiru saves your walks with distance, steps and calories to Apple Health.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "hashiru counts your steps and distance during a walk without a WalkingPad.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -368,8 +371,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = watchApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = hashiru;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "hashiru reads your heart rate during a walk to show your heart-rate zone and estimate calories on your iPhone.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "hashiru runs a workout on your Apple Watch during a walk so it keeps measuring your heart rate. Your iPhone saves the walk.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "hashiru reads the heart rate, calories, distance and steps of your walk to show them on your wrist and iPhone.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "hashiru records your walk as a workout on your Apple Watch, with the distance and steps from your WalkingPad, and saves it to Apple Health.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "hashiru maps your route during outdoor workouts and saves it to Apple Health.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(APP_BUNDLE_IDENTIFIER)";
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
@@ -399,8 +403,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = watchApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = hashiru;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "hashiru reads your heart rate during a walk to show your heart-rate zone and estimate calories on your iPhone.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "hashiru runs a workout on your Apple Watch during a walk so it keeps measuring your heart rate. Your iPhone saves the walk.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "hashiru reads the heart rate, calories, distance and steps of your walk to show them on your wrist and iPhone.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "hashiru records your walk as a workout on your Apple Watch, with the distance and steps from your WalkingPad, and saves it to Apple Health.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "hashiru maps your route during outdoor workouts and saves it to Apple Health.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(APP_BUNDLE_IDENTIFIER)";
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
@@ -498,6 +503,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "hashiru reads your walks, with their distance, steps, calories and heart rate, to show your sessions and trends, and your latest body weight, your age and your sex to estimate the calories of your walks and your heart-rate zones.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "hashiru saves your walks with distance, steps and calories to Apple Health.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "hashiru counts your steps and distance during a walk without a WalkingPad.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

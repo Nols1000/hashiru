@@ -43,4 +43,16 @@ data class WristTelemetry(
     val zone: HeartRateZone? = null,
     /** False while paused by a lost connection, where only the pad itself can resume. */
     val canResume: Boolean = false,
+    /** Where the workout stands on its course; null without one. */
+    val navigation: WristNavigation? = null,
+)
+
+/** The course as the wrist shows it: on it or how far off, and how far to go. */
+data class WristNavigation(
+    val onCourse: Boolean,
+    val offCourseMeters: Int,
+    val remainingMeters: Int,
+    /** False while heading to the course, before first reaching it. */
+    val joined: Boolean,
+    val finished: Boolean,
 )

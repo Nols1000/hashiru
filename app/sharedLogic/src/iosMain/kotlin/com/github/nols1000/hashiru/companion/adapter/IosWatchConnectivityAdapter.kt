@@ -6,6 +6,8 @@ import com.github.nols1000.hashiru.companion.domain.CompanionState
 import com.github.nols1000.hashiru.companion.domain.IncomingCommand
 import com.github.nols1000.hashiru.companion.domain.WristTelemetry
 import com.github.nols1000.hashiru.companion.port.WatchCompanionPort
+import com.github.nols1000.hashiru.course.codec.CourseCodec
+import com.github.nols1000.hashiru.course.domain.Course
 import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.toNSData
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
@@ -17,11 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import platform.Foundation.NSData
 import platform.Foundation.NSError
-import platform.HealthKit.HKHealthStore
-import platform.HealthKit.HKWorkoutActivityTypeWalking
-import platform.HealthKit.HKWorkoutConfiguration
-import platform.HealthKit.HKWorkoutSessionLocationTypeIndoor
-import platform.HealthKit.startWatchAppWithWorkoutConfiguration
 import platform.WatchConnectivity.WCSession
 import platform.WatchConnectivity.WCSessionActivationState
 import platform.WatchConnectivity.WCSessionActivationStateActivated
@@ -38,7 +35,6 @@ import platform.darwin.NSObject
 @OptIn(ExperimentalForeignApi::class)
 class IosWatchConnectivityAdapter : WatchCompanionPort {
     private val session: WCSession? = if (WCSession.isSupported()) WCSession.defaultSession else null
-    private val healthStore = HKHealthStore()
     private val delegate = Delegate()
 
     private val _state = MutableStateFlow(CompanionState.NotPaired)
@@ -61,21 +57,27 @@ class IosWatchConnectivityAdapter : WatchCompanionPort {
         session.sendMessageData(encode(telemetry), replyHandler = null) { error -> log("telemetry", error) }
     }
 
+    /** The application context as last sent: each update replaces all of it, so every key goes along each time. */
+    private val context = mutableMapOf<Any?, Any?>()
+
     override suspend fun pushState(telemetry: WristTelemetry) {
-        val session = session ?: return
-        if (_state.value == CompanionState.NotPaired || _state.value == CompanionState.AppNotInstalled) return
-        session.updateApplicationContext(mapOf(KEY_STATE to encode(telemetry)), null)
+        context[KEY_STATE] = encode(telemetry)
+        updateContext()
     }
 
-    /** Launches the watch app into its workout session; the system shows it on the wrist. */
-    override suspend fun requestCompanionStart() {
-        if (_state.value == CompanionState.NotPaired || _state.value == CompanionState.AppNotInstalled) return
-        val configuration = HKWorkoutConfiguration().apply {
-            activityType = HKWorkoutActivityTypeWalking
-            locationType = HKWorkoutSessionLocationTypeIndoor
-        }
-        healthStore.startWatchAppWithWorkoutConfiguration(configuration) { _, error -> log("start watch app", error) }
+    override suspend fun pushCourse(course: Course?) {
+        if (course == null) context.remove(KEY_COURSE) else context[KEY_COURSE] = CourseCodec.encodeForWatch(course).encodeToByteArray().toNSData()
+        updateContext()
     }
+
+    private fun updateContext() {
+        val session = session ?: return
+        if (_state.value == CompanionState.NotPaired || _state.value == CompanionState.AppNotInstalled) return
+        session.updateApplicationContext(context.toMap(), null)
+    }
+
+    /** The health store adapter launches the watch app into the workout's session, which it then mirrors. */
+    override suspend fun requestCompanionStart() = Unit
 
     private fun refresh() {
         val session = session
@@ -132,5 +134,6 @@ class IosWatchConnectivityAdapter : WatchCompanionPort {
 
         /** Application-context key; the watch app reads the same one. */
         const val KEY_STATE = "s"
+        const val KEY_COURSE = "r"
     }
 }

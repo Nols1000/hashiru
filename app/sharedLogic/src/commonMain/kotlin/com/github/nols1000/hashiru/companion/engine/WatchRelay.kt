@@ -2,6 +2,7 @@ package com.github.nols1000.hashiru.companion.engine
 
 import com.github.nols1000.hashiru.companion.domain.CompanionState
 import com.github.nols1000.hashiru.companion.domain.WristCommand
+import com.github.nols1000.hashiru.companion.domain.WristNavigation
 import com.github.nols1000.hashiru.companion.domain.WristTelemetry
 import com.github.nols1000.hashiru.companion.port.WatchCompanionPort
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
@@ -42,6 +43,8 @@ import kotlin.math.roundToInt
  * - Live metrics go to the watch at most once per [TELEMETRY_INTERVAL_MS], and only while it is reachable
  *   and there is something to show; phase changes go out at once over the durable path.
  * - When a walk starts, the watch is asked to start its workout session so its sensor runs.
+ * - The course the workout follows goes to the watch once, and is taken back when the workout ends; where the
+ *   workout stands on it travels with the live metrics.
  * - Commands from the wrist are carried out straight away and answered.
  */
 class WatchRelay internal constructor(
@@ -65,7 +68,7 @@ class WatchRelay internal constructor(
     val telemetry: StateFlow<WristTelemetry> =
         combine(session.connectionState, session.telemetry, workouts.status, heartRate) { connection, pad, walk, heart ->
             val connected = connection == ConnectionState.Connected
-            val bpm = heart?.bpm
+            val bpm = walk.heartRateBpm ?: heart?.bpm
             WristTelemetry(
                 phase = walk.phase,
                 isConnected = connected,
@@ -76,6 +79,9 @@ class WatchRelay internal constructor(
                 heartRateBpm = bpm,
                 zone = bpm?.let { HeartRateZone.of(it, walk.profile.ageYears) },
                 canResume = walk.phase == WorkoutPhase.Paused && walk.pauseReason != PauseReason.Disconnected,
+                navigation = walk.navigation?.let {
+                    WristNavigation(it.onCourse, it.offCourseMeters, it.remainingMeters, it.joined, it.finished)
+                },
             )
         }.stateIn(scope, SharingStarted.Eagerly, WristTelemetry())
 
@@ -109,7 +115,11 @@ class WatchRelay internal constructor(
             }
         }
         scope.launch {
-            telemetry.distinctUntilChangedBy { Triple(it.phase, it.isConnected, it.canResume) }.collect { report { port.pushState(it) } }
+            telemetry.distinctUntilChangedBy { listOf(it.phase, it.isConnected, it.canResume, it.navigation?.onCourse) }
+                .collect { report { port.pushState(it) } }
+        }
+        scope.launch {
+            workouts.status.map { it.course }.distinctUntilChangedBy { it?.id }.collect { report { port.pushCourse(it) } }
         }
         scope.launch {
             combine(port.state, telemetry) { state, t ->

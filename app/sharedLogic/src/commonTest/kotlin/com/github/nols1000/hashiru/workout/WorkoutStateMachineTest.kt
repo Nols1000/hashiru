@@ -6,9 +6,12 @@ import com.github.nols1000.hashiru.workout.domain.BodyWeight
 import com.github.nols1000.hashiru.workout.domain.Activity
 import com.github.nols1000.hashiru.workout.domain.DiscardReason
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
+import com.github.nols1000.hashiru.workout.domain.HeartRateStats
 import com.github.nols1000.hashiru.workout.domain.PadCounters
 import com.github.nols1000.hashiru.workout.domain.PauseReason
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 import com.github.nols1000.hashiru.workout.domain.Sex
+import com.github.nols1000.hashiru.workout.domain.TrackedTotals
 import com.github.nols1000.hashiru.workout.domain.UserProfile
 import com.github.nols1000.hashiru.workout.domain.EnergyModel
 import com.github.nols1000.hashiru.workout.domain.WeightSource
@@ -16,6 +19,7 @@ import com.github.nols1000.hashiru.workout.domain.WorkoutEvent
 import com.github.nols1000.hashiru.workout.domain.WorkoutKind
 import com.github.nols1000.hashiru.workout.domain.WorkoutRecord
 import com.github.nols1000.hashiru.workout.domain.WorkoutSource
+import com.github.nols1000.hashiru.workout.codec.WorkoutCodec
 import com.github.nols1000.hashiru.workout.engine.WorkoutContext
 import com.github.nols1000.hashiru.workout.engine.WorkoutEffect
 import com.github.nols1000.hashiru.workout.engine.WorkoutInput
@@ -167,6 +171,73 @@ class WorkoutStateMachineTest {
         feed(WorkoutInput.ConnectionLost)
         assertIs<WorkoutState.Idle>(state)
         assertEquals(1, effects.filterIsInstance<WorkoutEffect.Completed>().size)
+    }
+
+    /** The app was stopped after the last checkpoint and starts again [afterMs] later. */
+    private fun restart(afterMs: Long) {
+        now += afterMs
+        state = WorkoutStateMachine.restore(walkState, now)
+        feed(WorkoutInput.ConnectionLost)
+    }
+
+    @Test
+    fun aRestoredWalkGoesOnWhenThePadStillRuns() {
+        walk(0, 120)
+        restart(5_000)
+        assertEquals(PauseReason.Disconnected, walkState.pause?.reason)
+
+        // The pad counted on while the app was gone.
+        feed(running(at(125)))
+
+        assertNull(walkState.pause)
+        assertNull(walkState.restoredSinceMs)
+        assertEquals(at(125), walkState.totals)
+        assertTrue(walkState.pauses.isEmpty())
+    }
+
+    @Test
+    fun aRestoredWalkIsSavedWhenThePadStopped() {
+        walk(0, 120)
+        val checkpointAt = now
+        restart(60_000)
+
+        feed(stopped(at(130)))
+
+        assertEquals(checkpointAt + 10_000, completed.endMs)
+        assertEquals(at(130).meters, completed.distanceMeters)
+        assertIs<WorkoutState.Idle>(state)
+    }
+
+    @Test
+    fun aRestoredWalkIsSavedWhenThePadDoesNotReport() {
+        walk(0, 120)
+        val checkpointAt = now
+        restart(5_000)
+
+        now += WorkoutRules.RESTORE_TIMEOUT_MS - 1000
+        feed(WorkoutInput.Tick)
+        assertIs<WorkoutState.InProgress>(state)
+
+        now += 1000
+        feed(WorkoutInput.Tick)
+        assertEquals(checkpointAt, completed.endMs)
+    }
+
+    @Test
+    fun aRestoredWalkThatWasEndingWaitsForTheBeltAgain() {
+        walk(0, 120)
+        feed(WorkoutInput.UserEnd)
+        state = assertNotNull(WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(walkState)))
+        restart(2_000)
+
+        feed(running(at(122)))
+        assertEquals(now, walkState.endingSinceMs)
+        now += WorkoutRules.STOP_TIMEOUT_MS - 1000
+        feed(WorkoutInput.Tick)
+        assertIs<WorkoutState.InProgress>(state)
+
+        feed(stopped(at(124)))
+        assertEquals(at(124).meters, completed.distanceMeters)
     }
 
     @Test
@@ -333,7 +404,7 @@ class WorkoutStateMachineTest {
 
     // Phone workouts
 
-    private val notified get() = effects.filterIsInstance<WorkoutEffect.Notify>().map { it.event }
+    private val notified get() = effects.filterIsInstance<WorkoutEffect.Notify>().map { it.event }.filterNot { it is WorkoutEvent.Counted }
 
     /** Starts a phone workout of [kind] and has the health store confirm it. */
     private fun startPhone(kind: WorkoutKind = WorkoutKind.IndoorWalk) {
@@ -345,7 +416,7 @@ class WorkoutStateMachineTest {
     private fun count(from: Int, to: Int, metersPerSecond: Int = 1) {
         for (s in from..to) {
             if (s > from) now += 1000
-            feed(WorkoutInput.PhoneCounters("walk-1", PadCounters(s, s * metersPerSecond, s * 2)))
+            feed(WorkoutInput.Progress("walk-1", TrackedTotals(s, s * metersPerSecond, s * 2)))
         }
     }
 
@@ -427,7 +498,7 @@ class WorkoutStateMachineTest {
         count(0, 30)
         feed(WorkoutInput.TrackingLost("walk-1"))
         now += 5_000
-        feed(WorkoutInput.PhoneCounters("walk-1", PadCounters(35, 35, 70)))
+        feed(WorkoutInput.Progress("walk-1", TrackedTotals(35, 35, 70)))
 
         assertNull(walkState.pause)
         assertTrue(walkState.pauses.isEmpty())
@@ -446,6 +517,38 @@ class WorkoutStateMachineTest {
         assertTrue(effects.none { it is WorkoutEffect.Send })
     }
 
+    private fun point(atMs: Long, latitude: Double = 35.0) = RoutePoint(atMs, latitude, 139.0, 40.0, 5.0)
+
+    @Test
+    fun anOutdoorRunKeepsItsRouteWhileActive() {
+        startPhone(WorkoutKind.OutdoorRun)
+        count(0, 60, metersPerSecond = 3)
+        feed(WorkoutInput.Route("walk-1", listOf(point(now - 1_000), point(now))))
+        // Repeated, out of order or for another workout: nothing new.
+        feed(WorkoutInput.Route("walk-1", listOf(point(now - 1_000))))
+        feed(WorkoutInput.Route("walk-2", listOf(point(now + 500))))
+        feed(WorkoutInput.UserPause)
+        feed(WorkoutInput.Route("walk-1", listOf(point(now + 1_000))))
+        now += 5_000
+        feed(WorkoutInput.UserResume)
+        feed(WorkoutInput.Route("walk-1", listOf(point(now + 1_000, 35.001), point(now + 1_000))))
+        count(61, 120, metersPerSecond = 3)
+        feed(WorkoutInput.UserEnd)
+
+        val record = completed
+        assertEquals(WorkoutKind.OutdoorRun, record.kind)
+        assertEquals(listOf(point(start + 59_000), point(start + 60_000), point(start + 66_000, 35.001)), record.route)
+    }
+
+    @Test
+    fun aRouteBeforeTheStartIsIgnored() {
+        feed(WorkoutInput.UserStart(WorkoutKind.OutdoorWalk))
+        feed(WorkoutInput.Route("walk-1", listOf(point(now))))
+        feed(WorkoutInput.TrackingStarted("walk-1"))
+
+        assertTrue(walkState.route.isEmpty())
+    }
+
     @Test
     fun aShortPhoneWorkoutIsDiscarded() {
         startPhone()
@@ -461,5 +564,143 @@ class WorkoutStateMachineTest {
         feed(running(at(30)))
 
         assertEquals(listOf<WorkoutEvent>(WorkoutEvent.StartRequested("walk-1", start - 30_000, WorkoutKind.IndoorWalk, WorkoutSource.Pad)), notified)
+    }
+
+    @Test
+    fun aPadWalkTellsTheHealthStoreOfEveryPause() {
+        walk(0, 30)
+        feed(stopped(at(30)))
+        now += 5_000
+        walk(31, 40)
+        feed(WorkoutInput.UserPause)
+        now += 5_000
+        walk(41, 50)
+        feed(WorkoutInput.ConnectionLost)
+        now += 3_000
+        feed(running(at(53)))
+
+        assertEquals(
+            listOf<WorkoutEvent>(
+                WorkoutEvent.Paused("walk-1", start + 30_000),
+                WorkoutEvent.Resumed("walk-1", start + 35_000, 31),
+                WorkoutEvent.Paused("walk-1", start + 44_000),
+                WorkoutEvent.Resumed("walk-1", start + 49_000, 41),
+                WorkoutEvent.Paused("walk-1", start + 58_000),
+                WorkoutEvent.Resumed("walk-1", start + 61_000, 53),
+            ),
+            notified.drop(1),
+        )
+    }
+
+    @Test
+    fun aRestoredPadWalkResumesWithThePadsTime() {
+        walk(0, 60)
+        state = WorkoutStateMachine.restore(walkState, now)
+        now += 10_000
+        effects.clear()
+
+        // The pad counted through the restart; a store that lost count goes on from its time.
+        feed(running(at(70)))
+
+        assertEquals(listOf<WorkoutEvent>(WorkoutEvent.Resumed("walk-1", now, 70)), notified)
+    }
+
+    @Test
+    fun theHealthStoresTimeOutranksThePadsWhileWalking() {
+        walk(0, 60)
+        assertEquals(60, walkState.activeSeconds)
+
+        // The pad's reports stopped, but the store times on.
+        feed(WorkoutInput.Progress("walk-1", TrackedTotals(70)))
+        assertEquals(70, walkState.activeSeconds)
+        feed(WorkoutInput.Progress("other", TrackedTotals(500)))
+        assertEquals(70, walkState.activeSeconds)
+
+        // Paused, the walk keeps the time it had.
+        feed(stopped(at(60)))
+        feed(WorkoutInput.Progress("walk-1", TrackedTotals(72)))
+        assertEquals(70, walkState.activeSeconds)
+
+        now += 5_000
+        feed(running(at(61)))
+        feed(WorkoutInput.Progress("walk-1", TrackedTotals(75)))
+        walk(62, 120)
+        feed(stopped(at(120)))
+        feed(WorkoutInput.UserEnd)
+
+        assertEquals(75, completed.activeSeconds)
+        assertEquals(at(120).meters, completed.distanceMeters)
+    }
+
+    private val counts get() = effects.filterIsInstance<WorkoutEffect.Notify>().map { it.event }.filterIsInstance<WorkoutEvent.Counted>()
+
+    @Test
+    fun aPadWalkTellsTheStoreItsCountsWhileWalkingAndBeforeEachPause() {
+        walk(0, 11)
+
+        // The first report starts the walk; counts follow every three seconds.
+        assertEquals(listOf(1, 4, 7, 10).map { start + it * 1000L }, counts.map { it.atMs })
+        assertEquals(at(10).meters, counts.last().meters)
+        assertEquals(at(10).steps, counts.last().steps)
+
+        effects.clear()
+        feed(stopped(at(11)))
+        val events = effects.filterIsInstance<WorkoutEffect.Notify>().map { it.event }
+        assertEquals(listOf(WorkoutEvent.Counted::class, WorkoutEvent.Paused::class), events.map { it::class })
+        assertEquals(at(11).meters, counts.single().meters)
+    }
+
+    @Test
+    fun aSavedPadWalkHandsTheStoreItsLastCountsFirst() {
+        walk(0, 100)
+        feed(stopped(at(100)))
+        effects.clear()
+        feed(WorkoutInput.UserEnd)
+
+        // Nothing new since the pause: no repeat.
+        assertTrue(counts.isEmpty())
+        assertEquals(at(100).meters, completed.distanceMeters)
+    }
+
+    @Test
+    fun theStoresTotalsOutrankTheWalksOwn() {
+        walk(0, 100)
+        val heart = HeartRateStats(latestBpm = 118, avgBpm = 110, maxBpm = 131)
+        feed(WorkoutInput.Progress("walk-1", TrackedTotals(102, 85, 150, activeKcal = 9.5, totalKcal = 12.0, heartRate = heart)))
+
+        assertEquals(102, walkState.activeSeconds)
+        assertEquals(85, walkState.meters)
+        assertEquals(150, walkState.steps)
+        assertEquals(9.5, walkState.activeKcal)
+
+        feed(stopped(at(100)))
+        feed(WorkoutInput.UserEnd)
+        assertEquals(9.5, completed.activeKcal)
+        assertEquals(12.0, completed.totalKcal)
+        assertEquals(110, completed.avgHeartRate)
+        assertEquals(131, completed.maxHeartRate)
+    }
+
+    @Test
+    fun energyCarriesOverWhenTheStoreStopsTracking() {
+        walk(0, 100)
+        feed(WorkoutInput.Progress("walk-1", TrackedTotals(100, activeKcal = 20.0, totalKcal = 25.0)))
+        feed(WorkoutInput.TrackingLost("walk-1"))
+
+        assertNull(walkState.tracked)
+        assertEquals(20.0, walkState.activeKcal, 1e-9)
+
+        walk(101, 200)
+        val ownGain = EnergyModel.activeKcal(at(200).meters, 70.0) - EnergyModel.activeKcal(at(100).meters, 70.0)
+        assertEquals(20.0 + ownGain, walkState.activeKcal, 1e-9)
+    }
+
+    @Test
+    fun aPhoneWorkoutTakesItsTimeFromItsCounters() {
+        startPhone()
+        count(0, 10)
+        feed(WorkoutInput.Progress("walk-1", TrackedTotals(100)))
+
+        assertEquals(10, walkState.activeSeconds)
     }
 }

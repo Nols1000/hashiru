@@ -5,15 +5,16 @@ import com.github.nols1000.hashiru.companion.domain.IncomingCommand
 import com.github.nols1000.hashiru.companion.domain.WristCommand
 import com.github.nols1000.hashiru.companion.domain.WristTelemetry
 import com.github.nols1000.hashiru.companion.port.WatchCompanionPort
+import com.github.nols1000.hashiru.course.domain.Course
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
 import com.github.nols1000.hashiru.workout.engine.WorkoutPhase
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 /**
  * Simulated watch for running the app without one. While a walk is active it reports a heart rate that
@@ -45,6 +46,7 @@ class MockWatchCompanionAdapter(
 
     val pushedTelemetry = mutableListOf<WristTelemetry>()
     val pushedStates = mutableListOf<WristTelemetry>()
+    val pushedCourses = mutableListOf<Course?>()
     val replies = mutableListOf<Pair<WristCommand, Boolean>>()
     var startRequests = 0
         private set
@@ -64,6 +66,10 @@ class MockWatchCompanionAdapter(
 
     override suspend fun pushState(telemetry: WristTelemetry) {
         pushedStates += telemetry
+    }
+
+    override suspend fun pushCourse(course: Course?) {
+        pushedCourses += course
     }
 
     override suspend fun requestCompanionStart() {

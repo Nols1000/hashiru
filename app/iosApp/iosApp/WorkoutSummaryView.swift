@@ -49,11 +49,18 @@ struct WorkoutSummaryView: View {
                     }
                 }
 
+                if !summary.route.isEmpty {
+                    Section {
+                        RouteMap(route: summary.route)
+                            .listRowInsets(EdgeInsets())
+                    }
+                }
+
                 Section {
                     Button("Delete Walk", role: .destructive) { confirmingDelete = true }
                 }
             }
-            .navigationTitle("Indoor Walk")
+            .navigationTitle(summary.kind.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

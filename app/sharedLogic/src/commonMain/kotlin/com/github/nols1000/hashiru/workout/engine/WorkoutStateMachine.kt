@@ -9,6 +9,8 @@ import com.github.nols1000.hashiru.workout.domain.HeartRateSample
 import com.github.nols1000.hashiru.workout.domain.HeartRateSummary
 import com.github.nols1000.hashiru.workout.domain.PadCounters
 import com.github.nols1000.hashiru.workout.domain.PauseReason
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
+import com.github.nols1000.hashiru.workout.domain.TrackedTotals
 import com.github.nols1000.hashiru.workout.domain.UserProfile
 import com.github.nols1000.hashiru.workout.domain.WorkoutEvent
 import com.github.nols1000.hashiru.workout.domain.WorkoutKind
@@ -30,12 +32,18 @@ object WorkoutRules {
     /** A walk the user ended while the belt ran ends anyway if the belt has not stopped by then. */
     const val STOP_TIMEOUT_MS = 30_000L
 
+    /** A pad walk restored after the app was stopped is saved if the pad has not reported running by then. */
+    const val RESTORE_TIMEOUT_MS = 30_000L
+
     /** A lost connection ends the walk after this long; it is longer because the pad may still be running. */
     const val DISCONNECT_TIMEOUT_MS = 10 * 60_000L
 
     /** Shorter walks are dropped instead of saved. */
     const val MIN_ACTIVE_SECONDS = 60
     const val MIN_DISTANCE_METERS = 50
+
+    /** The pad's counts go to the health store at most this often while walking, and at every pause and end. */
+    const val COUNT_INTERVAL_MS = 3_000L
 
     /** Heart rates outside this range are sensor glitches. */
     const val MIN_HEART_RATE_BPM = 30
@@ -53,16 +61,22 @@ sealed interface WorkoutInput {
     data class Telemetry(val snapshot: TelemetrySnapshot) : WorkoutInput
     data object ConnectionLost : WorkoutInput
 
-    /** The user starts a workout that the phone tracks. */
-    data class UserStart(val kind: WorkoutKind) : WorkoutInput
+    /** The user starts a workout that the phone tracks, following the course [courseId] if there is one. */
+    data class UserStart(val kind: WorkoutKind, val courseId: String? = null) : WorkoutInput
 
     /** The health store tracks the workout requested as [id]. */
     data class TrackingStarted(val id: String) : WorkoutInput
     data class TrackingRejected(val id: String) : WorkoutInput
 
-    /** The phone's counters for the workout [id], without pauses. */
-    data class PhoneCounters(val id: String, val counters: PadCounters) : WorkoutInput
+    /**
+     * The health store's totals for the workout [id], without pauses. A phone workout is built from them; a pad walk
+     * takes them over its own while walking.
+     */
+    data class Progress(val id: String, val totals: TrackedTotals) : WorkoutInput
     data class TrackingLost(val id: String) : WorkoutInput
+
+    /** Positions newly recorded on the route of the workout [id]; kept while active only. */
+    data class Route(val id: String, val points: List<RoutePoint>) : WorkoutInput
     data object Tick : WorkoutInput
 
     /** A reading from the watch; counted while walking only. */
@@ -117,7 +131,7 @@ data class HeartAccumulator(
 }
 
 /** A phone workout asked of the health store at [requestedMs], waiting for it to start tracking. */
-data class PendingStart(val id: String, val kind: WorkoutKind, val requestedMs: Long)
+data class PendingStart(val id: String, val kind: WorkoutKind, val requestedMs: Long, val courseId: String? = null)
 
 sealed interface WorkoutState {
     /** [lastFinal] holds the pad counters at the end of the previous pad walk, see [InProgress.segmentBase]. */
@@ -150,9 +164,47 @@ sealed interface WorkoutState {
         val source: WorkoutSource = WorkoutSource.Pad,
         /** When the user ended this pad walk while the belt ran; it ends once the belt has run down. */
         val endingSinceMs: Long? = null,
+        /** When this pad walk was restored after the app was stopped; the pad's next report decides whether it goes on. */
+        val restoredSinceMs: Long? = null,
+        /**
+         * The health store's totals, once it reports them. They outrank the walk's own wherever the store measures a
+         * value. Not checkpointed: after a restart the store reports them again, and the walk's own stand in meanwhile.
+         */
+        val tracked: TrackedTotals? = null,
+        /** Energy the store had measured beyond the walk's own estimate when it stopped tracking; kept on top of it. */
+        val energyCarry: EnergyCarry = EnergyCarry.Zero,
+        /** The pad's counts as last told to the health store, and when; not checkpointed, a restart tells them again. */
+        val counted: PadCounters? = null,
+        val countedAtMs: Long = 0,
+        /** Where an outdoor workout went while active, oldest first. */
+        val route: List<RoutePoint> = emptyList(),
+        /** The course the workout follows, if any. */
+        val courseId: String? = null,
     ) : WorkoutState {
         val totals: PadCounters get() = closed + (segmentLast - segmentBase)
         val usesPad: Boolean get() = source == WorkoutSource.Pad
+
+        /**
+         * How long the workout was active: the health store's time where it times a pad walk, else the source's. A
+         * phone workout's time is its counters, which add up segments when the phone restarts counting.
+         */
+        val activeSeconds: Int get() = (if (usesPad) tracked?.seconds else null) ?: totals.seconds
+        val meters: Int get() = (if (usesPad) tracked?.meters else null) ?: totals.meters
+        val steps: Int get() = (if (usesPad) tracked?.steps else null) ?: totals.steps
+
+        /** Live energy: the health store's estimate, else the walking equation on the distance so far. */
+        val activeKcal: Double
+            get() = tracked?.activeKcal ?: (EnergyModel.activeKcal(totals.meters, weight.kg, kind.activity) + energyCarry.activeKcal)
+
+        val totalKcal: Double
+            get() = tracked?.totalKcal ?: (EnergyModel.totalKcal(totals.meters, totals.seconds, weight.kg, kind.activity) + energyCarry.totalKcal)
+    }
+}
+
+/** Energy the health store measured beyond the walk's own estimate, carried over once it stops tracking. */
+data class EnergyCarry(val activeKcal: Double, val totalKcal: Double) {
+    companion object {
+        val Zero = EnergyCarry(0.0, 0.0)
     }
 }
 
@@ -168,21 +220,57 @@ data class Transition(val state: WorkoutState, val effects: List<WorkoutEffect> 
  *   [WorkoutRules.START_TIMEOUT_MS].
  * - A pad walk pauses when the belt stops, the user pauses, or the connection drops, and resumes when the belt
  *   runs. A phone workout pauses and resumes on the user's request, or pauses when tracking is lost.
+ * - The health store hears of every pause and resume, and of a pad walk's counts every
+ *   [WorkoutRules.COUNT_INTERVAL_MS] and at every pause and end. What it measures (time, energy, heart rate, and
+ *   distance and steps where it holds the pad's counts) outranks the walk's own; its time goes on when the pad's
+ *   reports stop, which would stop the pad's time.
  * - Heart rate counts while active; a window that it covers well enough takes its energy from it.
  * - A workout ends on the user's request, after [WorkoutRules.DISCONNECT_TIMEOUT_MS] disconnected or without
  *   tracking, or, for a pad walk, after [WorkoutRules.PAUSE_TIMEOUT_MS] stopped. Workouts under the minimums are
  *   discarded.
  *   A pad walk ended while the belt runs keeps recording until the belt has run down, so the run-down does not
  *   start a new walk.
+ * - A pad walk restored after the app was stopped goes on if the pad still runs and is saved if it stopped, or
+ *   if the pad has not reported within [WorkoutRules.RESTORE_TIMEOUT_MS].
  *
  * A dropped connection leaves the current window open: if the pad kept counting through the gap, the walk
  * continues as if nothing happened, otherwise the gap becomes a pause. Tracking that comes back after it was
  * lost continues the same way, since the phone keeps counting meanwhile.
  */
 object WorkoutStateMachine {
+    /**
+     * A workout read back from its last checkpoint after the app was stopped. Without newer counters it is cut
+     * off at that checkpoint; a pad walk then waits for the pad to tell whether it still runs.
+     */
+    fun restore(state: WorkoutState.InProgress, nowMs: Long): WorkoutState.InProgress {
+        val cutOff = if (state.pause != null) state else state.copy(pause = ActivePause(PauseReason.Disconnected, state.windowStartMs))
+        return if (state.usesPad) cutOff.copy(restoredSinceMs = nowMs) else cutOff
+    }
+
     fun reduce(state: WorkoutState, input: WorkoutInput, context: WorkoutContext): Transition = when (state) {
         is WorkoutState.Idle -> reduceIdle(state, input, context)
-        is WorkoutState.InProgress -> reduceInProgress(state, input, context.nowMs)
+        is WorkoutState.InProgress -> counting(state, reduceInProgress(state, input, context.nowMs), context.nowMs)
+    }
+
+    /**
+     * Tells the health store a pad walk's counts once they changed: every [WorkoutRules.COUNT_INTERVAL_MS] while
+     * walking, and before a pause or resume, so what the pad counted lands on the right side of it.
+     */
+    private fun counting(before: WorkoutState.InProgress, transition: Transition, now: Long): Transition {
+        val next = transition.state as? WorkoutState.InProgress ?: return transition
+        if (!next.usesPad || next.restoredSinceMs != null) return transition
+        val pauseChanged = (before.pause == null) != (next.pause == null)
+        val due = next.pause == null && now - next.countedAtMs >= WorkoutRules.COUNT_INTERVAL_MS
+        if (!pauseChanged && !due) return transition
+        val (counted, effects) = next.count(now) ?: return transition
+        return Transition(counted, if (pauseChanged) effects + transition.effects else transition.effects + effects)
+    }
+
+    /** The pad's counts for the health store, or null when it already has them. */
+    private fun WorkoutState.InProgress.count(atMs: Long): Pair<WorkoutState.InProgress, List<WorkoutEffect>>? {
+        val now = totals
+        if (counted?.let { it.meters == now.meters && it.steps == now.steps } == true) return null
+        return copy(counted = now, countedAtMs = atMs) to listOf(notify(WorkoutEvent.Counted(id, atMs, now.meters, now.steps)))
     }
 
     private fun reduceIdle(state: WorkoutState.Idle, input: WorkoutInput, context: WorkoutContext): Transition {
@@ -195,13 +283,13 @@ object WorkoutStateMachine {
                     pending?.let { add(notify(WorkoutEvent.Discarded(it.id, DiscardReason.UserDiscarded))) }
                     add(notify(WorkoutEvent.StartRequested(id, now, input.kind, WorkoutSource.Phone)))
                 }
-                Transition(state.copy(pendingStart = PendingStart(id, input.kind, now)), effects)
+                Transition(state.copy(pendingStart = PendingStart(id, input.kind, now, input.courseId)), effects)
             }
 
             is WorkoutInput.TrackingStarted ->
                 if (pending?.id == input.id) {
                     val workout = newWorkout(pending.id, now, pending.kind, WorkoutSource.Phone, PadCounters.Zero, PadCounters.Zero, context)
-                    Transition(workout, listOf(WorkoutEffect.Checkpoint))
+                    Transition(workout.copy(courseId = pending.courseId), listOf(WorkoutEffect.Checkpoint))
                 } else {
                     // Tracking a start that was given up on meanwhile.
                     Transition(state, listOf(notify(WorkoutEvent.Discarded(input.id, DiscardReason.UserDiscarded))))
@@ -266,29 +354,47 @@ object WorkoutStateMachine {
     private fun reduceInProgress(state: WorkoutState.InProgress, input: WorkoutInput, now: Long): Transition {
         val pause = state.pause
         val ending = state.endingSinceMs
+        val restored = state.restoredSinceMs
         return when (input) {
             is WorkoutInput.Telemetry -> when {
                 !state.usesPad -> Transition(state)
+                restored != null && pause != null -> onRestoredTelemetry(state, pause, input.snapshot, now)
                 ending != null -> onEndingTelemetry(state, input.snapshot, now)
                 pause == null -> onActiveTelemetry(state, input.snapshot, now)
                 else -> onPausedTelemetry(state, pause, input.snapshot, now)
             }
 
-            is WorkoutInput.PhoneCounters -> when {
-                state.usesPad || input.id != state.id -> Transition(state)
-                pause == null -> closeWindowIfDue(state.withCounters(input.counters), now)
-                // Tracking is back; the phone counted on meanwhile, so the workout continues as if nothing happened.
-                pause.reason == PauseReason.Disconnected -> closeWindowIfDue(state.withCounters(input.counters).copy(pause = null), now)
-                else -> Transition(state.withCounters(input.counters))
+            is WorkoutInput.Progress -> {
+                val counters = input.totals.counters
+                when {
+                    input.id != state.id -> Transition(state)
+                    state.usesPad -> Transition(if (pause == null) state.copy(tracked = input.totals) else state)
+                    counters == null -> Transition(state.copy(tracked = input.totals))
+                    pause == null -> closeWindowIfDue(state.withCounters(counters).copy(tracked = input.totals), now)
+                    // Tracking is back; the phone counted on meanwhile, so the workout continues as if nothing happened.
+                    pause.reason == PauseReason.Disconnected ->
+                        closeWindowIfDue(state.withCounters(counters).copy(pause = null, tracked = input.totals), now)
+                    else -> Transition(state.withCounters(counters).copy(tracked = input.totals))
+                }
             }
 
-            is WorkoutInput.TrackingLost ->
-                if (!state.usesPad && input.id == state.id && pause == null) {
+            is WorkoutInput.TrackingLost -> when {
+                input.id != state.id -> Transition(state)
+                // The pad counts on; the walk's own estimates take over from where the store's left off.
+                state.usesPad -> Transition(state.untracked())
+                pause == null -> {
                     val paused = state.closeWindow(now, state.totals).copy(pause = ActivePause(PauseReason.Disconnected, now))
-                    Transition(paused, listOf(WorkoutEffect.Checkpoint))
-                } else {
-                    Transition(state)
+                    Transition(paused.untracked(), listOf(WorkoutEffect.Checkpoint))
                 }
+                else -> Transition(state.untracked())
+            }
+
+            is WorkoutInput.Route -> {
+                // A position repeated or out of order adds nothing; one from a pause is no part of the route.
+                val after = state.route.lastOrNull()?.atMs ?: Long.MIN_VALUE
+                val points = input.points.filter { it.atMs > after }.sortedBy { it.atMs }.distinctBy { it.atMs }
+                if (input.id == state.id && pause == null && points.isNotEmpty()) Transition(state.copy(route = state.route + points)) else Transition(state)
+            }
 
             is WorkoutInput.UserStart, is WorkoutInput.TrackingRejected -> Transition(state)
 
@@ -301,19 +407,25 @@ object WorkoutStateMachine {
                 }
 
             WorkoutInput.ConnectionLost -> when {
+                restored != null -> Transition(state)
                 ending != null -> finalize(state.closeWindow(now, state.totals), now)
                 state.usesPad && pause == null ->
-                    Transition(state.copy(pause = ActivePause(PauseReason.Disconnected, now)), listOf(WorkoutEffect.Checkpoint))
+                    Transition(
+                        state.copy(pause = ActivePause(PauseReason.Disconnected, now)),
+                        listOf(notify(WorkoutEvent.Paused(state.id, now)), WorkoutEffect.Checkpoint),
+                    )
                 else -> Transition(state)
             }
 
             WorkoutInput.Tick -> when {
-                ending != null && now - ending >= WorkoutRules.STOP_TIMEOUT_MS -> finalize(state.closeWindow(now, state.totals), now)
+                // The pad is off or out of reach.
+                restored != null && pause != null && now - restored >= WorkoutRules.RESTORE_TIMEOUT_MS -> endPaused(state, pause)
+                ending != null && restored == null && now - ending >= WorkoutRules.STOP_TIMEOUT_MS -> finalize(state.closeWindow(now, state.totals), now)
                 pause == null -> closeWindowIfDue(state, now)
                 pause.reason == PauseReason.Disconnected && now - pause.sinceMs >= WorkoutRules.DISCONNECT_TIMEOUT_MS ->
-                    finalize(state.closeWindow(pause.sinceMs, state.totals), pause.sinceMs)
+                    endPaused(state, pause)
                 state.usesPad && pause.reason != PauseReason.Disconnected && now - pause.sinceMs >= WorkoutRules.PAUSE_TIMEOUT_MS ->
-                    finalize(state, pause.sinceMs)
+                    endPaused(state, pause)
                 else -> Transition(state)
             }
 
@@ -330,7 +442,7 @@ object WorkoutStateMachine {
                 if (pause == null && ending == null) {
                     val paused = state.closeWindow(now, state.totals).copy(pause = ActivePause(PauseReason.UserRequested, now))
                     val effects = if (state.usesPad) {
-                        listOf(WorkoutEffect.Send(TreadmillCommand.StopBelt), WorkoutEffect.Checkpoint)
+                        listOf(WorkoutEffect.Send(TreadmillCommand.StopBelt), notify(WorkoutEvent.Paused(state.id, now)), WorkoutEffect.Checkpoint)
                     } else {
                         listOf(notify(WorkoutEvent.Paused(state.id, now)), WorkoutEffect.Checkpoint)
                     }
@@ -350,19 +462,19 @@ object WorkoutStateMachine {
                         windowStartMs = now,
                         windowStartTotals = state.totals,
                     )
-                    Transition(resumed, listOf(notify(WorkoutEvent.Resumed(state.id, now)), WorkoutEffect.Checkpoint))
+                    Transition(resumed, listOf(resumedEvent(resumed, now), WorkoutEffect.Checkpoint))
                 }
             }
 
             WorkoutInput.UserEnd -> when {
+                restored != null && pause != null -> endPaused(state, pause)
                 // Ending again does not wait for the belt.
                 ending != null -> finalize(state.closeWindow(now, state.totals), now)
                 // The belt takes a moment to run down; the walk ends once it reports stopped.
                 pause == null && state.usesPad ->
-                    Transition(state.copy(endingSinceMs = now), listOf(WorkoutEffect.Send(TreadmillCommand.StopBelt)))
+                    Transition(state.copy(endingSinceMs = now), listOf(WorkoutEffect.Send(TreadmillCommand.StopBelt), WorkoutEffect.Checkpoint))
                 pause == null -> finalize(state.closeWindow(now, state.totals), now)
-                pause.reason == PauseReason.Disconnected -> finalize(state.closeWindow(pause.sinceMs, state.totals), pause.sinceMs)
-                else -> finalize(state, pause.sinceMs)
+                else -> endPaused(state, pause)
             }
 
             WorkoutInput.UserDiscard -> {
@@ -376,6 +488,41 @@ object WorkoutStateMachine {
         }
     }
 
+    /** Drops the store's totals, carrying the energy it measured beyond the walk's own estimate. */
+    private fun WorkoutState.InProgress.untracked(): WorkoutState.InProgress {
+        if (tracked == null) return this
+        val ownActive = EnergyModel.activeKcal(totals.meters, weight.kg, kind.activity)
+        val ownTotal = EnergyModel.totalKcal(totals.meters, totals.seconds, weight.kg, kind.activity)
+        return copy(tracked = null, energyCarry = EnergyCarry(activeKcal - ownActive, totalKcal - ownTotal))
+    }
+
+    /** Ends a paused workout when its pause began; what a lost connection hid is counted up to then. */
+    private fun endPaused(state: WorkoutState.InProgress, pause: ActivePause): Transition =
+        if (pause.reason == PauseReason.Disconnected) {
+            finalize(state.closeWindow(pause.sinceMs, state.totals), pause.sinceMs)
+        } else {
+            finalize(state, pause.sinceMs)
+        }
+
+    /**
+     * The pad's first report after a restore. A running belt continues the walk, with the time the app was
+     * stopped as a pause unless the pad counted through it; a walk the user was ending waits for the belt anew. A
+     * stopped belt ends the walk when it stopped.
+     */
+    private fun onRestoredTelemetry(
+        state: WorkoutState.InProgress,
+        pause: ActivePause,
+        snapshot: TelemetrySnapshot,
+        now: Long,
+    ): Transition {
+        val decided = state.copy(restoredSinceMs = null, endingSinceMs = state.endingSinceMs?.let { now })
+        val running = snapshot.isRunning && snapshot.speedKmh > 0.0
+        val next = onPausedTelemetry(decided, pause, if (running) snapshot else snapshot.copy(isRunning = false), now)
+        if (running) return next.copy(effects = (next.effects + WorkoutEffect.Checkpoint).distinct())
+        val stopped = next.state as WorkoutState.InProgress
+        return endPaused(stopped, stopped.pause ?: pause)
+    }
+
     /** A pad walk the user ended runs on until the belt has run down, then ends. */
     private fun onEndingTelemetry(state: WorkoutState.InProgress, snapshot: TelemetrySnapshot, now: Long): Transition {
         val updated = state.withCounters(snapshot.counters())
@@ -387,7 +534,7 @@ object WorkoutStateMachine {
         val updated = state.withCounters(snapshot.counters())
         if (snapshot.isRunning) return closeWindowIfDue(updated, now)
         val paused = updated.closeWindow(now, updated.totals).copy(pause = ActivePause(PauseReason.BeltStopped, now))
-        return Transition(paused, listOf(WorkoutEffect.Checkpoint))
+        return Transition(paused, listOf(notify(WorkoutEvent.Paused(state.id, now)), WorkoutEffect.Checkpoint))
     }
 
     private fun onPausedTelemetry(
@@ -408,7 +555,7 @@ object WorkoutStateMachine {
                 windowStartMs = now,
                 windowStartTotals = before,
             )
-            return Transition(resumed, listOf(WorkoutEffect.Checkpoint))
+            return Transition(resumed, listOf(resumedEvent(resumed, now), WorkoutEffect.Checkpoint))
         }
 
         // First report after a reconnect: work out what the pad did during the gap.
@@ -416,8 +563,10 @@ object WorkoutStateMachine {
         val gapSeconds = (now - pause.sinceMs) / 1000
         val keptCounting = snapshot.counters().continues(state.segmentLast)
         return when {
-            snapshot.isRunning && keptCounting && advancedSeconds * 2 >= gapSeconds ->
-                closeWindowIfDue(updated.copy(pause = null), now)
+            snapshot.isRunning && keptCounting && advancedSeconds * 2 >= gapSeconds -> {
+                val continued = closeWindowIfDue(updated.copy(pause = null), now)
+                continued.copy(effects = listOf(resumedEvent(updated, now)) + continued.effects)
+            }
 
             snapshot.isRunning -> {
                 val resumed = updated.closeWindow(pause.sinceMs, before).copy(
@@ -426,7 +575,7 @@ object WorkoutStateMachine {
                     windowStartMs = now,
                     windowStartTotals = before,
                 )
-                Transition(resumed, listOf(WorkoutEffect.Checkpoint))
+                Transition(resumed, listOf(resumedEvent(resumed, now), WorkoutEffect.Checkpoint))
             }
 
             else -> {
@@ -450,36 +599,44 @@ object WorkoutStateMachine {
      * workout that is saved reaches the health store through the recorder, which holds back what may not be saved.
      */
     private fun finalize(state: WorkoutState.InProgress, endMs: Long): Transition {
-        val totals = state.totals
+        val activeSeconds = state.activeSeconds
+        val meters = state.meters
         val idle = state.idle()
-        if (totals.seconds < WorkoutRules.MIN_ACTIVE_SECONDS || totals.meters < WorkoutRules.MIN_DISTANCE_METERS) {
+        if (activeSeconds < WorkoutRules.MIN_ACTIVE_SECONDS || meters < WorkoutRules.MIN_DISTANCE_METERS) {
             return Transition(
                 idle,
                 listOf(notify(WorkoutEvent.Discarded(state.id, DiscardReason.TooShort)), WorkoutEffect.Discarded(DiscardReason.TooShort)),
             )
         }
+        // The last counts before the save, so the store holds all of the pad's distance and steps.
+        val counted = if (state.usesPad) state.count(endMs)?.second.orEmpty() else emptyList()
+        val tracked = state.tracked
         val record = WorkoutRecord(
             id = state.id,
             startMs = state.startMs,
             endMs = endMs,
-            activeSeconds = totals.seconds,
-            distanceMeters = totals.meters,
-            steps = totals.steps,
-            activeKcal = state.samples.sumOf { it.activeKcal },
-            totalKcal = state.samples.sumOf { it.totalKcal },
+            activeSeconds = activeSeconds,
+            distanceMeters = meters,
+            steps = state.steps,
+            activeKcal = tracked?.activeKcal ?: (state.samples.sumOf { it.activeKcal } + state.energyCarry.activeKcal),
+            totalKcal = tracked?.totalKcal ?: (state.samples.sumOf { it.totalKcal } + state.energyCarry.totalKcal),
             weight = state.weight,
             pauses = state.pauses,
             samples = state.samples,
             kind = state.kind,
             source = state.source,
+            heartRate = tracked?.heartRate,
+            route = state.route,
         )
-        return Transition(idle, listOf(WorkoutEffect.Completed(record)))
+        return Transition(idle, counted + WorkoutEffect.Completed(record))
     }
 
     /** Idle after this workout; only the pad's counters can carry over into the next walk. */
     private fun WorkoutState.InProgress.idle() = WorkoutState.Idle(lastFinal = segmentLast.takeIf { usesPad })
 
     private fun notify(event: WorkoutEvent) = WorkoutEffect.Notify(event)
+
+    private fun resumedEvent(state: WorkoutState.InProgress, now: Long) = notify(WorkoutEvent.Resumed(state.id, now, state.activeSeconds))
 
     /** Applies a counter reading; counters that went down mean the pad reset them and a new segment began. */
     private fun WorkoutState.InProgress.withCounters(raw: PadCounters): WorkoutState.InProgress =

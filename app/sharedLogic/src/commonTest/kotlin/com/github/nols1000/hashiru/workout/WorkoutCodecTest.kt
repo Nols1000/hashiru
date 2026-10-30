@@ -3,9 +3,11 @@ package com.github.nols1000.hashiru.workout
 import com.github.nols1000.hashiru.workout.codec.WorkoutCodec
 import com.github.nols1000.hashiru.workout.domain.BodyWeight
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
+import com.github.nols1000.hashiru.workout.domain.HeartRateStats
 import com.github.nols1000.hashiru.workout.domain.HeartRateSummary
 import com.github.nols1000.hashiru.workout.domain.PadCounters
 import com.github.nols1000.hashiru.workout.domain.PauseReason
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 import com.github.nols1000.hashiru.workout.domain.Sex
 import com.github.nols1000.hashiru.workout.domain.SyncState
 import com.github.nols1000.hashiru.workout.domain.UserProfile
@@ -80,6 +82,8 @@ class WorkoutCodecTest {
 
         assertEquals(state, WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(state)))
         assertEquals(state.copy(pause = null), WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(state.copy(pause = null))))
+        val ending = state.copy(pause = null, endingSinceMs = 120_000)
+        assertEquals(ending, WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(ending)))
         val empty = state.copy(profile = UserProfile(), heart = HeartAccumulator())
         assertEquals(empty, WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(empty)))
     }
@@ -95,6 +99,66 @@ class WorkoutCodecTest {
             pauses = emptyList(), pause = null, kind = WorkoutKind.IndoorRun, source = WorkoutSource.Phone,
         )
         assertEquals(state, WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(state)))
+    }
+
+    @Test
+    fun theStoresHeartRateRoundTrips() {
+        val measured = record.copy(syncState = SyncState.Saved, heartRate = HeartRateStats(latestBpm = null, avgBpm = 104, maxBpm = 131))
+
+        assertEquals(measured, WorkoutCodec.decodeRecord(WorkoutCodec.encodeRecord(measured)))
+    }
+
+    @Test
+    fun versionFourRecordsStillDecode() {
+        val v4 = WorkoutCodec.encodeRecord(record.copy(syncState = SyncState.Saved)).replaceFirst("7|", "4|").removeSuffix("||")
+
+        assertEquals(record.copy(syncState = SyncState.Saved), WorkoutCodec.decodeRecord(v4))
+    }
+
+    private val route = listOf(
+        RoutePoint(1_000, 35.6852, 139.7101, 40.5, 4.0),
+        RoutePoint(2_000, 35.68525, 139.71013, null, 12.5),
+    )
+
+    @Test
+    fun theRouteRoundTrips() {
+        val run = record.copy(syncState = SyncState.Saved, kind = WorkoutKind.OutdoorRun, source = WorkoutSource.Phone, route = route)
+        assertEquals(run, WorkoutCodec.decodeRecord(WorkoutCodec.encodeRecord(run)))
+
+        val state = WorkoutState.InProgress(
+            id = "run", startMs = 1_000, weight = BodyWeight.Default, closed = PadCounters.Zero, segmentBase = PadCounters.Zero,
+            segmentLast = PadCounters(30, 80, 70), windowStartMs = 1_000, windowStartTotals = PadCounters.Zero, samples = emptyList(),
+            pauses = emptyList(), pause = null, kind = WorkoutKind.OutdoorRun, source = WorkoutSource.Phone, route = route,
+        )
+        assertEquals(state, WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(state)))
+    }
+
+    @Test
+    fun versionFiveTextDecodesWithoutARoute() {
+        val saved = record.copy(syncState = SyncState.Saved)
+        val v5 = WorkoutCodec.encodeRecord(saved).replaceFirst("7|", "5|").removeSuffix("|")
+        assertEquals(saved, WorkoutCodec.decodeRecord(v5))
+
+        val state = WorkoutState.InProgress(
+            id = "walk", startMs = 1_000, weight = BodyWeight.Default, closed = PadCounters.Zero, segmentBase = PadCounters.Zero,
+            segmentLast = PadCounters(30, 80, 70), windowStartMs = 1_000, windowStartTotals = PadCounters.Zero, samples = emptyList(),
+            pauses = emptyList(), pause = null,
+        )
+        val v5InProgress = WorkoutCodec.encodeInProgress(state).replaceFirst("7|", "5|").removeSuffix("||")
+        assertEquals(state, WorkoutCodec.decodeInProgress(v5InProgress))
+    }
+
+    @Test
+    fun theCourseOfAWalkInProgressRoundTrips() {
+        val state = WorkoutState.InProgress(
+            id = "run", startMs = 1_000, weight = BodyWeight.Default, closed = PadCounters.Zero, segmentBase = PadCounters.Zero,
+            segmentLast = PadCounters(30, 80, 70), windowStartMs = 1_000, windowStartTotals = PadCounters.Zero, samples = emptyList(),
+            pauses = emptyList(), pause = null, kind = WorkoutKind.OutdoorRun, source = WorkoutSource.Phone, route = route, courseId = "course-1",
+        )
+        assertEquals(state, WorkoutCodec.decodeInProgress(WorkoutCodec.encodeInProgress(state)))
+
+        val v6 = WorkoutCodec.encodeInProgress(state).replaceFirst("7|", "6|").removeSuffix("|course-1")
+        assertEquals(state.copy(courseId = null), WorkoutCodec.decodeInProgress(v6))
     }
 
     @Test

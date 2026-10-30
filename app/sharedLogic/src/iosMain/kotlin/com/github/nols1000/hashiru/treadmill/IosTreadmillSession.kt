@@ -3,6 +3,11 @@ package com.github.nols1000.hashiru.treadmill
 import com.github.nols1000.hashiru.companion.adapter.IosWatchConnectivityAdapter
 import com.github.nols1000.hashiru.companion.adapter.MockWatchCompanionAdapter
 import com.github.nols1000.hashiru.companion.engine.WatchRelay
+import com.github.nols1000.hashiru.course.adapter.FileCourseLibrary
+import com.github.nols1000.hashiru.course.domain.ImportResult
+import com.github.nols1000.hashiru.course.port.CourseLibraryPort
+import com.github.nols1000.hashiru.course.presentation.CourseLibraryViewModel
+import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.treadmill.adapter.IosAccessoryAssociationAdapter
 import com.github.nols1000.hashiru.treadmill.adapter.IosTransportAdapter
 import com.github.nols1000.hashiru.treadmill.adapter.MockAssociationAdapter
@@ -23,6 +28,7 @@ import kotlinx.coroutines.launch
 import platform.Foundation.NSCalendar
 import platform.Foundation.NSCalendarUnitDay
 import platform.Foundation.NSCalendarUnitWeekday
+import platform.Foundation.NSData
 import platform.Foundation.NSDate
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
@@ -34,10 +40,18 @@ class IosApp(
     val relay: WatchRelay,
     private val history: WorkoutHistoryPort,
     private val storage: KeyValueStorePort,
+    private val courses: CourseLibraryPort,
 ) {
     /** A presenter for the walks in Apple Health, with weeks in the user's calendar. */
     fun historyViewModel(): HistoryViewModel = HistoryViewModel(history, workouts, storage, ::weekDayStarts)
+
+    /** A presenter for the routes imported to this iPhone. */
+    fun courseLibraryViewModel(): CourseLibraryViewModel = CourseLibraryViewModel(courses)
 }
+
+/** Imports the GPX or FIT file [fileName] holding [data]; for Swift, which hands over `Data`. */
+fun CourseLibraryViewModel.importFile(fileName: String, data: NSData, onResult: (ImportResult) -> Unit) =
+    import(fileName, data.toByteArray(), onResult)
 
 /** Midnight of each day of the week containing [nowMs], then of the next week's first day, as the calendar has it. */
 private fun weekDayStarts(nowMs: Long): List<Long> {
@@ -61,10 +75,11 @@ fun createIosApp(simulated: Boolean): IosApp {
     val session = createIosTreadmillSession(simulated)
     val health = IosHealthKitAdapter(simulated)
     val storage = UserDefaultsStore()
-    val workouts = WorkoutRecorder(session, health, storage)
+    val courses = FileCourseLibrary()
+    val workouts = WorkoutRecorder(session, health, storage, courses)
     val relay = WatchRelay(session, workouts, if (simulated) MockWatchCompanionAdapter() else IosWatchConnectivityAdapter())
     relay.start()
-    return IosApp(session, workouts, relay, health, storage)
+    return IosApp(session, workouts, relay, health, storage, courses)
 }
 
 /**

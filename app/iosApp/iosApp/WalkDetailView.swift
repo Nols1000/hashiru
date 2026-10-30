@@ -8,6 +8,7 @@ struct WalkDetailView: View {
     let actions: HistoryActions
 
     @State private var heartRate: HeartRateUi?
+    @State private var route: [RoutePoint] = []
     @State private var confirmingDelete = false
     @Environment(\.dismiss) private var dismiss
 
@@ -19,6 +20,13 @@ struct WalkDetailView: View {
                     Text("Workout Details")
                         .font(.title2.bold())
                     WorkoutMetricsGrid(metrics: metrics)
+                }
+                if !route.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Map")
+                            .font(.title2.bold())
+                        RouteMap(route: route)
+                    }
                 }
                 if let heartRate, !heartRate.points.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -43,6 +51,7 @@ struct WalkDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: walk.id) {
             actions.heartRate(walk) { heartRate = $0 }
+            actions.route(walk) { route = $0 }
         }
         .confirmationDialog("Delete this walk?", isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete Walk", role: .destructive) {

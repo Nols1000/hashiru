@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 import SharedLogic
 
@@ -54,12 +55,15 @@ extension HeartRateZone {
 /// The workout, styled like a workout in the Fitness app on iPhone: the time and metrics on black, the state of
 /// the WalkingPad or the walk top left, and a glass sheet at the bottom. It opens ready, before anything is
 /// recorded, with play in the sheet; once the belt runs, the compact sheet holds the pad's speed instead. Pulled
-/// up, it lists Pause (on the pad), End Workout, Connected Devices and Lock Controls.
+/// up, it lists Pause (on the pad), End Workout, Connected Devices and Lock Controls. Outdoors, a swipe brings up
+/// the map with the route so far.
 struct LiveWorkoutView: View {
     let state: TreadmillUiState
     let actions: TreadmillActions
     /// The workout to start from the ready screen.
     let kind: WorkoutKind
+    /// The route it follows from the ready screen; once recording, the workout's own.
+    var course: Course?
     /// Leaves the ready screen without recording anything.
     var onCancel: () -> Void = {}
 
@@ -71,15 +75,14 @@ struct LiveWorkoutView: View {
     @ScaledMetric(relativeTo: .headline) private var pauseHeight: CGFloat = 74
     @State private var detent = PresentationDetent.height(88)
     @State private var locked = false
+    /// Asks for location on the ready screen, so the prompt does not hold up the start.
+    @State private var location = CLLocationManager()
 
-    private var session: WorkoutSession { WorkoutSession(state: state, kind: kind) }
+    private var session: WorkoutSession { WorkoutSession(state: state, kind: kind, course: course) }
     private var expandedHeight: CGFloat { compactHeight + listHeight + (session.onPad && !session.held ? pauseHeight : 0) }
 
     var body: some View {
-        // The metrics run on under the glass sheet and scroll clear of it.
-        MetricsPage(workout: state.workout, session: session)
-            .contentMargins(.bottom, compactHeight + 40, for: .scrollContent)
-            .ignoresSafeArea(edges: .bottom)
+        pages
             .background(Color.black.ignoresSafeArea())
             .preferredColorScheme(.dark)
             .statusBarHidden()
@@ -103,6 +106,38 @@ struct LiveWorkoutView: View {
             .onChange(of: compactHeight, initial: true) { _, height in
                 if detent != .height(expandedHeight) { detent = .height(height) }
             }
+            .task {
+                if session.kind.outdoor && location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() }
+                if session.course != nil { NavigationAlerts.shared.prepare() }
+            }
+            .onChange(of: state.workout.navigationAlerts) { _, _ in
+                if let navigation = state.workout.navigation { NavigationAlerts.shared.announce(navigation) }
+            }
+    }
+
+    @ViewBuilder private var pages: some View {
+        // The metrics run on under the glass sheet and scroll clear of it.
+        let metrics = MetricsPage(workout: state.workout, session: session)
+            .contentMargins(.bottom, compactHeight + 40, for: .scrollContent)
+            .ignoresSafeArea(edges: .bottom)
+        if session.kind.outdoor {
+            TabView {
+                metrics
+                LiveRouteMap(route: state.workout.route, course: session.course?.coordinates ?? [])
+                    .overlay(alignment: .top) {
+                        if let navigation = state.workout.navigation {
+                            NavigationBanner(navigation: navigation)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                        }
+                    }
+                    .padding(.bottom, compactHeight)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea(edges: .bottom)
+        } else {
+            metrics
+        }
     }
 }
 
@@ -113,11 +148,14 @@ private struct WorkoutSession {
     let onPad: Bool
     /// Not recording time right now: ready, or paused.
     let held: Bool
+    /// The route followed, if any.
+    let course: Course?
 
-    init(state: TreadmillUiState, kind: WorkoutKind) {
+    init(state: TreadmillUiState, kind: WorkoutKind, course: Course?) {
         let workout = state.workout
         ready = !workout.isInProgress
         self.kind = ready ? kind : workout.kind
+        self.course = ready ? course : workout.course
         onPad = ready ? state.isConnected && kind.takesPad : workout.usesPad
         held = ready || workout.phase != .active
     }
@@ -213,9 +251,9 @@ private struct WorkoutStatusBar: View {
         if let error, failedStop { return error.body ?? error.title }
         if workout.connectionLost { return "Lost the WalkingPad. Your walk is paused; check that the pad is on and nearby." }
         if session.onPad && disconnected { return "Reconnecting to the WalkingPad…" }
-        if disconnected { return "Your iPhone stopped counting. The walk is paused." }
+        if disconnected { return "Your iPhone stopped counting. The workout is paused." }
         if let error { return error.title }
-        if session.ready { return session.onPad ? "Press play to start the belt and the walk." : "Press play to start the walk." }
+        if session.ready { return session.onPad ? "Press play to start the belt and the walk." : "Press play to start the workout." }
         if workout.phase == .paused { return "Paused" }
         return session.onPad ? (state.isRunning ? "WalkingPad running" : "WalkingPad stopped") : "Counting with your iPhone"
     }
@@ -243,6 +281,13 @@ private struct MetricsPage: View {
                     HeartRateMetric(workout: workout)
                 }
                 MetricBlock(value: kilometres(workout.distanceMeters), unit: "KM", label: "Distance")
+                if let navigation = workout.navigation {
+                    MetricBlock(
+                        value: kilometres(navigation.remainingMeters), unit: "KM",
+                        label: navigation.onCourse ? "Remaining" : "Remaining · Off Route",
+                        glyph: navigation.onCourse ? nil : Image(systemName: "exclamationmark.triangle.fill"), tint: .orange
+                    )
+                }
                 MetricBlock(value: pace(workout.paceSecondsPerKm?.int32Value), unit: "/KM", label: "Average Pace")
                 MetricBlock(value: Int(workout.steps).formatted(), unit: "", label: "Steps")
                 if workout.weightEstimated {
@@ -438,7 +483,7 @@ private struct WorkoutControlsSheet: View {
     private func playPause() {
         if session.ready {
             // On the pad, the walk starts once the belt runs.
-            if session.onPad { actions.toggleBelt() } else { actions.startWorkout(session.kind) }
+            if session.onPad { actions.toggleBelt() } else { actions.startWorkout(session.kind, session.course) }
         } else if session.held {
             actions.resumeWorkout()
         } else {

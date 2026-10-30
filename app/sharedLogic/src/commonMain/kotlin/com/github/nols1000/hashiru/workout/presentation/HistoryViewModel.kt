@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.nols1000.hashiru.workout.domain.HeartRateZone
 import com.github.nols1000.hashiru.workout.domain.PastWalk
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 import com.github.nols1000.hashiru.workout.domain.SyncState
 import com.github.nols1000.hashiru.workout.domain.WalkTrend
 import com.github.nols1000.hashiru.workout.domain.WalkTrends
@@ -155,6 +156,12 @@ class HistoryViewModel internal constructor(
                 ),
             )
         }
+    }
+
+    /** Loads where [walk] went and hands it to [onResult] on the main thread; empty indoors or without a route. */
+    fun route(walk: PastWalk, onResult: (List<RoutePoint>) -> Unit) {
+        if (walk.indoor) return onResult(emptyList())
+        viewModelScope.launch { onResult(report { history.route(walk) }.orEmpty()) }
     }
 
     fun setWeeklyGoal(meters: Int) {

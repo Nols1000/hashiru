@@ -1,14 +1,16 @@
 import Foundation
 import WatchConnectivity
 
-/// The watch's side of WatchConnectivity: live metrics as message data, the walk's phase as the application
-/// context, and commands that the phone answers with an ack.
+/// The watch's side of WatchConnectivity: live metrics as message data, the walk's phase and the route it follows
+/// as the application context, and commands that the phone answers with an ack.
 final class PhoneLink: NSObject, WCSessionDelegate {
     /// How long a command may take; past it the user is told to act on the pad.
     static let ackTimeout: TimeInterval = 1.5
 
     /// Called on the main queue.
     var onTelemetry: ((WristTelemetry) -> Void)?
+    /// The route of the workout in progress, or nil without one.
+    var onCourse: ((WristCourse?) -> Void)?
     var onReachability: ((Bool) -> Void)?
 
     private let session = WCSession.default
@@ -32,12 +34,6 @@ final class PhoneLink: NSObject, WCSessionDelegate {
             })
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.ackTimeout) { once.resume(false) }
         }
-    }
-
-    func sendHeartRate(bpm: Int, at date: Date) {
-        guard isReachable else { return }
-        let data = WatchCodec.encodeHeartRate(epochMs: Int64(date.timeIntervalSince1970 * 1000), bpm: bpm)
-        session.sendMessageData(data, replyHandler: nil, errorHandler: nil)
     }
 
     // MARK: - WCSessionDelegate
@@ -64,6 +60,7 @@ final class PhoneLink: NSObject, WCSessionDelegate {
     }
 
     private func applyContext(_ context: [String: Any]) {
+        onCourse?((context["r"] as? Data).flatMap(WatchCodec.decodeCourse))
         guard let data = context["s"] as? Data, let telemetry = WatchCodec.decodeTelemetry(data) else { return }
         onTelemetry?(telemetry)
     }

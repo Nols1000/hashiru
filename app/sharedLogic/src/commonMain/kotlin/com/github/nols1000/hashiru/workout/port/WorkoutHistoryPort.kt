@@ -2,6 +2,7 @@ package com.github.nols1000.hashiru.workout.port
 
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
 import com.github.nols1000.hashiru.workout.domain.PastWalk
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 
 /** Driven port: walking workouts read back from the platform health store, whichever app recorded them. */
 interface WorkoutHistoryPort {
@@ -13,6 +14,9 @@ interface WorkoutHistoryPort {
 
     /** Heart-rate readings during [walk], oldest first. */
     suspend fun heartRate(walk: PastWalk): List<HeartRateSample>
+
+    /** Where [walk] went, oldest first; empty indoors or where the source recorded no route. */
+    suspend fun route(walk: PastWalk): List<RoutePoint>
 
     /** Shows the system's permission sheet for reading walks, unless the user has already answered it. */
     suspend fun requestReadAccess()

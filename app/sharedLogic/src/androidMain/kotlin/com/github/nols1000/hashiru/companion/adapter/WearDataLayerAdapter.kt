@@ -8,6 +8,7 @@ import com.github.nols1000.hashiru.companion.domain.CompanionState
 import com.github.nols1000.hashiru.companion.domain.IncomingCommand
 import com.github.nols1000.hashiru.companion.domain.WristTelemetry
 import com.github.nols1000.hashiru.companion.port.WatchCompanionPort
+import com.github.nols1000.hashiru.course.domain.Course
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Node
@@ -83,6 +84,9 @@ class WearDataLayerAdapter(context: Context) : WatchCompanionPort {
         }.asPutDataRequest().setUrgent()
         data.putDataItem(request).await()
     }
+
+    /** The Wear OS app does not navigate courses yet. */
+    override suspend fun pushCourse(course: Course?) = Unit
 
     /** The watch starts its exercise when the phase in [pushState] turns active, so there is nothing more to send. */
     override suspend fun requestCompanionStart() = Unit

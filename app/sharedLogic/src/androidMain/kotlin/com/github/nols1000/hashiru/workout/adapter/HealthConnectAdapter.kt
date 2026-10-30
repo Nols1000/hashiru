@@ -111,7 +111,8 @@ class HealthConnectAdapter(context: Context) : HealthSyncPort {
             }
             is WorkoutEvent.Restored -> if (event.source == WorkoutSource.Phone) _events.tryEmit(HealthEvent.TrackingLost(event.id))
             is WorkoutEvent.Finished -> scope.launch { _events.emit(save(event.record)) }
-            is WorkoutEvent.Paused, is WorkoutEvent.Resumed, is WorkoutEvent.Discarded -> Unit
+            // Health Connect runs no live session: the pad's counts reach it with the saved walk.
+            is WorkoutEvent.Paused, is WorkoutEvent.Resumed, is WorkoutEvent.Discarded, is WorkoutEvent.Counted -> Unit
         }
     }
 

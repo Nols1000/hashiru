@@ -1,15 +1,20 @@
 package com.github.nols1000.hashiru.workout.engine
 
+import com.github.nols1000.hashiru.course.adapter.InMemoryCourseLibrary
+import com.github.nols1000.hashiru.course.domain.Course
+import com.github.nols1000.hashiru.course.domain.NavigationStatus
+import com.github.nols1000.hashiru.course.engine.CourseNavigator
+import com.github.nols1000.hashiru.course.port.CourseLibraryPort
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
 import com.github.nols1000.hashiru.treadmill.engine.TreadmillSession
 import com.github.nols1000.hashiru.workout.domain.BodyWeight
 import com.github.nols1000.hashiru.workout.domain.DiscardReason
-import com.github.nols1000.hashiru.workout.domain.EnergyModel
 import com.github.nols1000.hashiru.workout.domain.HealthEvent
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
 import com.github.nols1000.hashiru.workout.domain.PadCounters
 import com.github.nols1000.hashiru.workout.domain.PauseReason
 import com.github.nols1000.hashiru.workout.domain.RejectReason
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 import com.github.nols1000.hashiru.workout.domain.Sex
 import com.github.nols1000.hashiru.workout.domain.SyncState
 import com.github.nols1000.hashiru.workout.domain.UserProfile
@@ -53,7 +58,10 @@ data class HealthStatus(
     val showPriorityTip: Boolean = false,
 )
 
-/** What the UI shows about workouts. [totals] and [activeKcal] cover the workout in progress, across pauses. */
+/**
+ * What the UI shows about workouts. [totals] and [activeKcal] cover the workout in progress, across pauses, as
+ * the health store measures them where it does, else as the walk's source counted them.
+ */
 data class WorkoutStatus(
     val phase: WorkoutPhase = WorkoutPhase.Idle,
     /** The workout in progress, or the last one asked for while waiting for it to start. */
@@ -67,6 +75,15 @@ data class WorkoutStatus(
     val pausedSeconds: Int = 0,
     val totals: PadCounters = PadCounters.Zero,
     val activeKcal: Double = 0.0,
+    /** The latest heart rate as the health store measured it; null where it measures none. */
+    val heartRateBpm: Int? = null,
+    /** Where the outdoor workout in progress went so far. */
+    val route: List<RoutePoint> = emptyList(),
+    /** The course the workout in progress follows, and where it stands on it. */
+    val course: Course? = null,
+    val navigation: NavigationStatus? = null,
+    /** Goes up each time the workout strays from its course or comes back to it, so the UI can alert once. */
+    val navigationAlerts: Int = 0,
     val weight: BodyWeight = BodyWeight.Default,
     val manualWeightKg: Double? = null,
     /** Age and sex for heart-rate energy and zones: from the health store where it has them, else manual. */
@@ -96,16 +113,23 @@ class WorkoutRecorder internal constructor(
     private val scope: CoroutineScope,
     private val nowMs: () -> Long,
     private val newId: () -> String,
+    private val courses: CourseLibraryPort = InMemoryCourseLibrary(),
 ) {
     /** Creates the recorder on the main thread for the rest of the process; keep a single instance. */
     @OptIn(ExperimentalTime::class, ExperimentalUuidApi::class)
-    constructor(session: TreadmillSession, health: HealthSyncPort, storage: KeyValueStorePort) : this(
+    constructor(
+        session: TreadmillSession,
+        health: HealthSyncPort,
+        storage: KeyValueStorePort,
+        courses: CourseLibraryPort = InMemoryCourseLibrary(),
+    ) : this(
         session,
         health,
         WorkoutStore(storage),
         CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         { Clock.System.now().toEpochMilliseconds() },
         { Uuid.random().toString() },
+        courses,
     )
 
     private val _status = MutableStateFlow(WorkoutStatus())
@@ -120,6 +144,9 @@ class WorkoutRecorder internal constructor(
     private var authorization = HealthAuthorization.NotDetermined
     private var startRejected: RejectReason? = null
     private var started = false
+    private var navigator: CourseNavigator? = null
+    private var course: Course? = null
+    private var navigationAlerts = 0
 
     fun start() {
         if (started) return
@@ -127,7 +154,7 @@ class WorkoutRecorder internal constructor(
         session.start()
         // Listening before anything is sent, so no answer is missed.
         scope.launch(start = CoroutineStart.UNDISPATCHED) { health.events.collect(::onHealthEvent) }
-        machine = store.inProgress?.let(::restored) ?: WorkoutState.Idle(store.lastFinalCounters)
+        machine = store.inProgress?.let { WorkoutStateMachine.restore(it, nowMs()) } ?: WorkoutState.Idle(store.lastFinalCounters)
         (machine as? WorkoutState.InProgress)?.let { health.handle(WorkoutEvent.Restored(it.id, it.startMs, it.kind, it.source)) }
         summary = store.lastSummaryId?.let(store::record)
         publish()
@@ -157,9 +184,10 @@ class WorkoutRecorder internal constructor(
     }
 
     /** Starts a workout of [kind] that the phone tracks, once the health store confirms it. */
-    fun start(kind: WorkoutKind) {
+    /** Starts a workout of [kind] that the phone tracks, once the health store confirms it, following [courseId]. */
+    fun start(kind: WorkoutKind, courseId: String? = null) {
         startRejected = null
-        apply(WorkoutInput.UserStart(kind))
+        apply(WorkoutInput.UserStart(kind, courseId))
     }
 
     fun dismissStartRejected() {
@@ -267,7 +295,26 @@ class WorkoutRecorder internal constructor(
             }
         }
         if (machine is WorkoutState.InProgress) tooShort = false
+        followCourse()
         publish()
+    }
+
+    /**
+     * Keeps the navigator in step with the workout: made when a workout with a course begins or comes back after
+     * process death, then caught up on the route so far, and dropped when it ends.
+     */
+    private fun followCourse() {
+        val state = machine as? WorkoutState.InProgress
+        val id = state?.courseId
+        if (id == null) {
+            navigator = null
+            course = null
+            return
+        }
+        if (course?.id == id) return
+        val loaded = courses.load(id)
+        course = loaded
+        navigator = loaded?.let(::CourseNavigator)?.also { n -> state.route.forEach { n.update(it.latitude, it.longitude, it.accuracyM) } }
     }
 
     private fun finishWalk() {
@@ -282,8 +329,22 @@ class WorkoutRecorder internal constructor(
                 if ((machine as? WorkoutState.Idle)?.pendingStart?.id == event.id) startRejected = event.reason
                 apply(WorkoutInput.TrackingRejected(event.id))
             }
-            is HealthEvent.Progress -> apply(WorkoutInput.PhoneCounters(event.id, event.counters))
+            is HealthEvent.Progress -> apply(WorkoutInput.Progress(event.id, event.totals))
             is HealthEvent.TrackingLost -> apply(WorkoutInput.TrackingLost(event.id))
+            is HealthEvent.Route -> {
+                val before = (machine as? WorkoutState.InProgress)?.route?.size ?: 0
+                val following = navigator
+                apply(WorkoutInput.Route(event.id, event.points))
+                // A navigator just made has replayed the route already.
+                val navigator = navigator?.takeIf { it === following } ?: return
+                val added = (machine as? WorkoutState.InProgress)?.route?.drop(before).orEmpty()
+                if (added.isEmpty()) return
+                for (point in added) {
+                    val wasOnCourse = navigator.status.onCourse
+                    if (navigator.update(point.latitude, point.longitude, point.accuracyM).onCourse != wasOnCourse) navigationAlerts++
+                }
+                publish()
+            }
             is HealthEvent.Saved -> updateSync(event.id, SyncState.Saved)
             is HealthEvent.SaveDeferred -> updateSync(event.id, SyncState.Busy)
             is HealthEvent.SaveFailed -> updateSync(event.id, SyncState.Failed(event.message))
@@ -294,10 +355,6 @@ class WorkoutRecorder internal constructor(
         val record = store.record(id) ?: return
         update(record.copy(syncState = state))
     }
-
-    /** A checkpoint is taken while active too; without newer counters, treat the workout as cut off at that point. */
-    private fun restored(state: WorkoutState.InProgress) =
-        if (state.pause != null) state else state.copy(pause = ActivePause(PauseReason.Disconnected, state.windowStartMs))
 
     private fun syncPending() {
         store.records().filter { it.needsSync }.forEach(::sync)
@@ -369,7 +426,7 @@ class WorkoutRecorder internal constructor(
                 watchTipDismissed = store.watchTipDismissed,
             )
             is WorkoutState.InProgress -> {
-                val totals = state.totals
+                val totals = PadCounters(state.activeSeconds, state.meters, state.steps)
                 WorkoutStatus(
                     phase = if (state.pause == null) WorkoutPhase.Active else WorkoutPhase.Paused,
                     kind = state.kind,
@@ -377,7 +434,12 @@ class WorkoutRecorder internal constructor(
                     pauseReason = state.pause?.reason,
                     pausedSeconds = state.pause?.let { ((nowMs() - it.sinceMs) / 1000).toInt().coerceAtLeast(0) } ?: 0,
                     totals = totals,
-                    activeKcal = EnergyModel.activeKcal(totals.meters, state.weight.kg, state.kind.activity),
+                    activeKcal = state.activeKcal,
+                    heartRateBpm = state.tracked?.heartRate?.latestBpm,
+                    route = state.route,
+                    course = course,
+                    navigation = navigator?.status,
+                    navigationAlerts = navigationAlerts,
                     weight = state.weight,
                     manualWeightKg = store.manualWeightKg,
                     profile = profile,

@@ -4,12 +4,16 @@ import com.github.nols1000.hashiru.companion.adapter.MockWatchCompanionAdapter
 import com.github.nols1000.hashiru.companion.domain.CompanionState
 import com.github.nols1000.hashiru.companion.domain.WristCommand
 import com.github.nols1000.hashiru.companion.engine.WatchRelay
+import com.github.nols1000.hashiru.course.adapter.InMemoryCourseLibrary
+import com.github.nols1000.hashiru.course.domain.Course
+import com.github.nols1000.hashiru.course.domain.CoursePoint
 import com.github.nols1000.hashiru.treadmill.adapter.MockAssociationAdapter
 import com.github.nols1000.hashiru.treadmill.adapter.MockTransportAdapter
 import com.github.nols1000.hashiru.treadmill.engine.TreadmillSession
 import com.github.nols1000.hashiru.workout.adapter.InMemoryKeyValueStore
 import com.github.nols1000.hashiru.workout.adapter.MockHealthSyncAdapter
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
+import com.github.nols1000.hashiru.workout.domain.WorkoutKind
 import com.github.nols1000.hashiru.workout.engine.WorkoutPhase
 import com.github.nols1000.hashiru.workout.engine.WorkoutRecorder
 import com.github.nols1000.hashiru.workout.store.WorkoutStore
@@ -29,11 +33,14 @@ class WatchRelayTest {
 
     private class Rig(val session: TreadmillSession, val workouts: WorkoutRecorder, val relay: WatchRelay)
 
+    private val course = Course("course-1", "East", listOf(CoursePoint(0.0, 0.0), CoursePoint(0.0, 0.01)), 1_112, null, 0)
+
     private suspend fun TestScope.rig(): Rig {
         val transport = MockTransportAdapter(30, 10, testScheduler.timeSource)
         val session = TreadmillSession(transport, MockAssociationAdapter(), backgroundScope, testScheduler.timeSource)
         val workouts = WorkoutRecorder(
             session, MockHealthSyncAdapter(), WorkoutStore(InMemoryKeyValueStore()), backgroundScope, { testScheduler.currentTime }, { "walk" },
+            InMemoryCourseLibrary(listOf(course)),
         )
         val relay = WatchRelay(session, workouts, watch, backgroundScope)
         relay.start()
@@ -57,6 +64,20 @@ class WatchRelayTest {
         assertEquals(listOf<Pair<WristCommand, Boolean>>(WristCommand.SetPaused(false) to true), watch.replies)
         assertEquals(1, watch.startRequests)
         assertEquals(WorkoutPhase.Active, watch.pushedStates.last().phase)
+    }
+
+    @Test
+    fun theCourseGoesToTheWatchForTheWorkoutAndIsTakenBackAfter() = runTest {
+        val rig = rig()
+        rig.workouts.start(WorkoutKind.OutdoorRun, course.id)
+        runCurrent()
+
+        assertEquals(course, watch.pushedCourses.last())
+        assertEquals(1_112, watch.pushedStates.last().navigation?.remainingMeters)
+
+        rig.workouts.discard()
+        runCurrent()
+        assertNull(watch.pushedCourses.last())
     }
 
     @Test

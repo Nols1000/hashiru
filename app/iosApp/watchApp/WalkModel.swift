@@ -2,8 +2,8 @@ import Foundation
 import HealthKit
 import WatchKit
 
-/// What the wrist shows and can do. The phone owns the treadmill and the walk; this mirrors it, runs the
-/// workout session for heart rate while a walk is in progress, and sends commands.
+/// What the wrist shows and can do. The phone owns the treadmill and the walk; this shows it, runs the walk's
+/// workout session (which the phone mirrors), and sends commands.
 @MainActor
 final class WalkModel: ObservableObject {
     static let shared = WalkModel()
@@ -13,7 +13,6 @@ final class WalkModel: ObservableObject {
 
     /// Speed changes go out once the crown has been still this long, so the treadmill gets one command per turn.
     private static let settle: Duration = .milliseconds(300)
-    private static let heartRateInterval: TimeInterval = 1
     /// A failed command is shown this long; the next tap tells the walker whether it works now.
     private static let commandErrorDuration: Duration = .seconds(4)
 
@@ -25,15 +24,21 @@ final class WalkModel: ObservableObject {
     @Published private(set) var stopFailed = false
     /// The speed the crown asked for, until the pad reports it.
     @Published private(set) var targetTenths: Int?
+    /// The route the workout follows, from the phone; nil without one.
+    @Published private(set) var course: WristCourse?
 
     private let link = PhoneLink()
     private let workout = WorkoutSessionManager()
-    private var lastHeartRateSent = Date.distantPast
     private var speedTask: Task<Void, Never>?
     private var errorTask: Task<Void, Never>?
+    private var orphanTask: Task<Void, Never>?
+
+    /// How long a session may run while the phone has no walk before it is dropped.
+    private static let orphanTimeout: Duration = .seconds(60)
 
     private init() {
         link.onTelemetry = { [weak self] in self?.apply($0) }
+        link.onCourse = { [weak self] in self?.course = $0 }
         link.onReachability = { [weak self] in self?.phoneReachable = $0 }
         workout.onHeartRate = { [weak self] bpm, date in self?.heartRate(bpm, at: date) }
         link.activate()
@@ -42,8 +47,14 @@ final class WalkModel: ObservableObject {
 
     var controlsEnabled: Bool { phoneReachable && telemetry.isConnected }
 
+    /// The phone started a walk; its session runs here and is mirrored back.
     func startWorkout(_ configuration: HKWorkoutConfiguration) {
         workout.start(configuration)
+    }
+
+    /// Takes back the session that ran when the app was stopped.
+    func recoverWorkout() {
+        workout.recover()
     }
 
     /// Moves the pending speed target from the crown; the command follows once the crown settles.
@@ -102,22 +113,35 @@ final class WalkModel: ObservableObject {
     }
 
     private func apply(_ telemetry: WristTelemetry) {
+        // Off the route or back on it: the wrist feels it, as the phone may be in a pocket.
+        if let before = self.telemetry.navigation, let now = telemetry.navigation, before.onCourse != now.onCourse {
+            WKInterfaceDevice.current().play(now.onCourse ? .success : .failure)
+        }
+        if let now = telemetry.navigation, now.finished, self.telemetry.navigation?.finished == false {
+            WKInterfaceDevice.current().play(.success)
+        }
         self.telemetry = telemetry
         if !telemetry.isRunning || telemetry.speedTenths == targetTenths { targetTenths = nil }
         // Stopped by the pad's own button or remote, the failed stop no longer matters.
         if !telemetry.isRunning && stopFailed { clearError() }
+        // The phone starts and ends the session; a session left running without a walk is dropped after a while.
         if telemetry.phase == .idle {
-            workout.end()
             localBpm = nil
+            guard workout.isRunning, orphanTask == nil else { return }
+            orphanTask = Task {
+                try? await Task.sleep(for: Self.orphanTimeout)
+                guard !Task.isCancelled else { return }
+                orphanTask = nil
+                if self.telemetry.phase == .idle { workout.discard() }
+            }
         } else {
-            workout.start()
+            orphanTask?.cancel()
+            orphanTask = nil
         }
     }
 
+    /// Shown on the wrist; the phone gets heart rate through the mirrored session.
     private func heartRate(_ bpm: Int, at date: Date) {
         localBpm = bpm
-        guard date.timeIntervalSince(lastHeartRateSent) >= Self.heartRateInterval else { return }
-        lastHeartRateSent = date
-        link.sendHeartRate(bpm: bpm, at: date)
     }
 }

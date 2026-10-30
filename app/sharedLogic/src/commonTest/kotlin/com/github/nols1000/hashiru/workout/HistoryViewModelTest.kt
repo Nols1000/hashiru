@@ -8,6 +8,7 @@ import com.github.nols1000.hashiru.workout.adapter.InMemoryKeyValueStore
 import com.github.nols1000.hashiru.workout.adapter.MockHealthSyncAdapter
 import com.github.nols1000.hashiru.workout.adapter.MockWorkoutHistoryAdapter
 import com.github.nols1000.hashiru.workout.domain.PastWalk
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 import com.github.nols1000.hashiru.workout.domain.WalkTrends.DAY_MS
 import com.github.nols1000.hashiru.workout.engine.WorkoutRecorder
 import com.github.nols1000.hashiru.workout.port.HealthAuthorization
@@ -60,6 +61,21 @@ class HistoryViewModelTest {
         recorder.start()
         val weekDays = { _: Long -> (0..7).map { now - 3 * DAY_MS + it * DAY_MS } }
         return HistoryViewModel(history, recorder, WorkoutStore(storage), weekDays, { now }).also { viewModels.put("history", it) }
+    }
+
+    @Test
+    fun anOutdoorWalksRouteIsLoaded() = runTest(dispatcher) {
+        val outdoor = walk(1).copy(indoor = false)
+        val route = listOf(RoutePoint(outdoor.startMs, 35.0, 139.0), RoutePoint(outdoor.startMs + 1_000, 35.00001, 139.0))
+        val viewModel = viewModel(MockWorkoutHistoryAdapter(listOf(outdoor), routes = mapOf(outdoor.id to route, "w2" to route)))
+        var loaded: List<RoutePoint>? = null
+        viewModel.route(outdoor) { loaded = it }
+        runCurrent()
+        assertEquals(route, loaded)
+
+        // Indoors there is nothing to read.
+        viewModel.route(walk(2)) { loaded = it }
+        assertEquals(emptyList(), loaded)
     }
 
     @Test

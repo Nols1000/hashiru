@@ -1,5 +1,8 @@
 package com.github.nols1000.hashiru.workout
 
+import com.github.nols1000.hashiru.course.adapter.InMemoryCourseLibrary
+import com.github.nols1000.hashiru.course.domain.Course
+import com.github.nols1000.hashiru.course.domain.CoursePoint
 import com.github.nols1000.hashiru.treadmill.adapter.MockAssociationAdapter
 import com.github.nols1000.hashiru.treadmill.adapter.MockTransportAdapter
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillCommand
@@ -9,8 +12,10 @@ import com.github.nols1000.hashiru.workout.adapter.MockHealthSyncAdapter
 import com.github.nols1000.hashiru.workout.domain.PadCounters
 import com.github.nols1000.hashiru.workout.domain.PauseReason
 import com.github.nols1000.hashiru.workout.domain.RejectReason
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 import com.github.nols1000.hashiru.workout.domain.SyncState
 import com.github.nols1000.hashiru.workout.domain.WeightSource
+import com.github.nols1000.hashiru.workout.domain.TrackedTotals
 import com.github.nols1000.hashiru.workout.domain.WorkoutEvent
 import com.github.nols1000.hashiru.workout.domain.WorkoutKind
 import com.github.nols1000.hashiru.workout.domain.WorkoutSource
@@ -40,12 +45,16 @@ class WorkoutRecorderTest {
     private val storage = InMemoryKeyValueStore()
     private val epoch = 1_700_000_000_000L
 
+    /** 1.1 km due east along the equator. */
+    private val course = Course("course-1", "East", listOf(CoursePoint(0.0, 0.0), CoursePoint(0.0, 0.01)), 1_112, null, 0)
+    private val courses = InMemoryCourseLibrary(listOf(course))
+
     private fun TestScope.recorder(): Pair<TreadmillSession, WorkoutRecorder> {
         // The pad accumulates distance on the test clock, so virtual time walks it.
         transport = MockTransportAdapter(targetSpeedTenths = 30, rampStepTenths = 10, timeSource = testScheduler.timeSource)
         val session = TreadmillSession(transport, MockAssociationAdapter(), backgroundScope, testScheduler.timeSource)
         val recorder = WorkoutRecorder(
-            session, health, WorkoutStore(storage), backgroundScope, { epoch + testScheduler.currentTime }, { "walk-1" },
+            session, health, WorkoutStore(storage), backgroundScope, { epoch + testScheduler.currentTime }, { "walk-1" }, courses,
         )
         recorder.start()
         runCurrent()
@@ -103,11 +112,24 @@ class WorkoutRecorderTest {
         session.dispatch(TreadmillCommand.StopBelt)
         advanceTimeBy(2_000)
         assertEquals(PauseReason.BeltStopped, recorder.status.value.pauseReason)
+        assertTrue(health.received.any { it is WorkoutEvent.Paused && it.id == "walk-1" })
 
         advanceTimeBy(WorkoutRules.PAUSE_TIMEOUT_MS)
 
         assertNotNull(health.saved["walk-1"])
         assertEquals(WorkoutPhase.Idle, recorder.status.value.phase)
+    }
+
+    @Test
+    fun aPadWalkShowsTheHealthStoresTime() = runTest {
+        val (session, recorder) = recorder()
+        walk(session, 10_000)
+        assertEquals(WorkoutPhase.Active, recorder.status.value.phase)
+
+        health.progress("walk-1", TrackedTotals(42))
+        runCurrent()
+
+        assertEquals(42, recorder.status.value.totals.seconds)
     }
 
     @Test
@@ -245,6 +267,93 @@ class WorkoutRecorderTest {
         assertEquals(WorkoutSource.Phone, saved.source)
         assertEquals(120, saved.distanceMeters)
         assertEquals(SyncState.Saved, recorder.status.value.summary?.syncState)
+    }
+
+    @Test
+    fun anOutdoorRunShowsAndSavesItsRoute() = runTest {
+        val (_, recorder) = recorder()
+        recorder.start(WorkoutKind.OutdoorRun)
+        runCurrent()
+
+        val route = mutableListOf<RoutePoint>()
+        for (s in 1..120) {
+            advanceTimeBy(1_000)
+            health.progress(PadCounters(s, s * 3, s * 3))
+            val point = RoutePoint(epoch + testScheduler.currentTime, 35.0 + s * 1e-5, 139.0, 40.0, 5.0)
+            route += point
+            health.route(listOf(point))
+            runCurrent()
+        }
+        assertEquals(route, recorder.status.value.route)
+
+        recorder.end()
+        runCurrent()
+
+        val saved = assertNotNull(health.saved["walk-1"])
+        assertEquals(WorkoutKind.OutdoorRun, saved.kind)
+        assertEquals(route, saved.route)
+        assertEquals(route, recorder.status.value.summary?.route)
+    }
+
+    /** Reports a position at [lat], [lon] a second after the last, as the phone's GPS would. */
+    private fun TestScope.moveTo(lat: Double, lon: Double, seconds: Int) {
+        advanceTimeBy(1_000)
+        health.progress(PadCounters(seconds, seconds * 3, seconds * 3))
+        health.route(listOf(RoutePoint(epoch + testScheduler.currentTime, lat, lon, null, 5.0)))
+        runCurrent()
+    }
+
+    @Test
+    fun aRunAlongACourseIsNavigatedAndStrayingAlertsOncePerExcursion() = runTest {
+        val (_, recorder) = recorder()
+        recorder.start(WorkoutKind.OutdoorRun, course.id)
+        runCurrent()
+        assertEquals(course, recorder.status.value.course)
+        assertEquals(1_112, recorder.status.value.navigation?.remainingMeters)
+
+        for (s in 1..20) moveTo(0.0, s * 1e-4, s)
+        val along = assertNotNull(recorder.status.value.navigation)
+        assertTrue(along.onCourse && along.joined)
+        assertEquals(1_112 - 222, along.remainingMeters)
+        assertEquals(0, recorder.status.value.navigationAlerts)
+
+        // 100 m off to the north for a while, then back.
+        for (s in 21..25) moveTo(0.001, s * 1e-4, s)
+        assertFalse(recorder.status.value.navigation!!.onCourse)
+        assertEquals(1, recorder.status.value.navigationAlerts)
+        moveTo(0.0, 26e-4, 26)
+        assertTrue(recorder.status.value.navigation!!.onCourse)
+        assertEquals(2, recorder.status.value.navigationAlerts)
+
+        recorder.end()
+        runCurrent()
+        assertNull(recorder.status.value.course)
+        assertNull(recorder.status.value.navigation)
+    }
+
+    @Test
+    fun aRestoredRunFollowsItsCourseFromWhereItWas() = runTest {
+        val (_, first) = recorder()
+        first.start(WorkoutKind.OutdoorRun, course.id)
+        runCurrent()
+        for (s in 1..70) moveTo(0.0, s * 1e-4, s)
+
+        // A checkpoint was written when the first minute's window closed.
+        val (_, restored) = recorder()
+        runCurrent()
+        assertEquals(course.id, restored.status.value.course?.id)
+        assertTrue(restored.status.value.navigation!!.progressMeters > 600)
+    }
+
+    @Test
+    fun deniedLocationAccessRejectsAnOutdoorStart() = runTest {
+        val (_, recorder) = recorder()
+        health.rejectPhoneWith = RejectReason.LocationAccessDenied
+        recorder.start(WorkoutKind.OutdoorRun)
+        runCurrent()
+
+        assertEquals(WorkoutPhase.Idle, recorder.status.value.phase)
+        assertEquals(RejectReason.LocationAccessDenied, recorder.status.value.startRejected)
     }
 
     @Test

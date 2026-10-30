@@ -7,6 +7,11 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
         Task { @MainActor in WalkModel.shared.startWorkout(workoutConfiguration) }
     }
+
+    /// The app was stopped during a walk; its session goes on.
+    func handleActiveWorkoutRecovery() {
+        Task { @MainActor in WalkModel.shared.recoverWorkout() }
+    }
 }
 
 @main
@@ -15,7 +20,7 @@ struct HashiruWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WalkView(model: .shared)
+            WalkPages(model: .shared)
         }
     }
 }

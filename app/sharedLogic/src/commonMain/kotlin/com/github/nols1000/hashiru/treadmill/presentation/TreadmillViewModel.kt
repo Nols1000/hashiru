@@ -12,8 +12,12 @@ import com.github.nols1000.hashiru.treadmill.domain.TreadmillException
 import com.github.nols1000.hashiru.treadmill.engine.TreadmillSession
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
 import com.github.nols1000.hashiru.workout.domain.HeartRateZone
+import com.github.nols1000.hashiru.workout.domain.PadCounters
 import com.github.nols1000.hashiru.workout.domain.PauseReason
+import com.github.nols1000.hashiru.course.domain.Course
+import com.github.nols1000.hashiru.course.domain.NavigationStatus
 import com.github.nols1000.hashiru.workout.domain.RejectReason
+import com.github.nols1000.hashiru.workout.domain.RoutePoint
 import com.github.nols1000.hashiru.workout.domain.Sex
 import com.github.nols1000.hashiru.workout.domain.SyncState
 import com.github.nols1000.hashiru.workout.domain.WeightSource
@@ -85,6 +89,13 @@ data class WorkoutUiState(
     val heartRateBpm: Int? = null,
     /** Null without a heart rate or without a known age. */
     val heartRateZone: HeartRateZone? = null,
+    /** Where the outdoor workout in progress went so far, for the live map. */
+    val route: List<RoutePoint> = emptyList(),
+    /** The course the workout follows, and where it stands on it; null without one. */
+    val course: Course? = null,
+    val navigation: NavigationStatus? = null,
+    /** Goes up each time the workout strays from its course or comes back; alert when it changes. */
+    val navigationAlerts: Int = 0,
     val companion: CompanionState = CompanionState.NotPaired,
     /** Offer the watch app once, while the phone has a watch without it. */
     val showWatchTip: Boolean = false,
@@ -127,6 +138,9 @@ data class WorkoutSummaryUi(
     val maxHeartRate: Int? = null,
     /** True when calories came from heart rate for at least part of the walk. */
     val energyFromHeartRate: Boolean = false,
+    val kind: WorkoutKind = WorkoutKind.IndoorWalk,
+    /** Where an outdoor workout went; empty indoors. */
+    val route: List<RoutePoint> = emptyList(),
 )
 
 data class HealthUi(
@@ -145,12 +159,21 @@ class TreadmillViewModel(
     private val workouts: WorkoutRecorder,
     private val relay: WatchRelay,
 ) : ViewModel() {
-    private class Walk(val status: WorkoutStatus, val heart: HeartRateSample?, val companion: CompanionState)
+    private class Walk(val status: WorkoutStatus, val heart: HeartRateSample?, val companion: CompanionState) {
+        /** The health store's reading where it measures heart rate, else the watch's own message. */
+        val bpm: Int? get() = status.heartRateBpm ?: heart?.bpm
+    }
 
     private val error = MutableStateFlow<TreadmillError?>(null)
 
     /** Last speed requested via the stepper, so rapid taps build on each other before telemetry catches up. */
     private var requestedTenths: Int? = null
+
+    /**
+     * The walk's time and distance when the distance last changed. The pad counts distance in 10 m steps, so
+     * only then do the two agree; a pace from them does not drift between steps.
+     */
+    private var paceAt = PadCounters.Zero
 
     private val walk = combine(workouts.status, relay.heartRate, relay.companion, ::Walk)
 
@@ -169,8 +192,8 @@ class TreadmillViewModel(
                 isPaired = association != null,
                 canPair = session.canPair,
                 workout = walk.status.toUi(connected).copy(
-                    heartRateBpm = walk.heart?.bpm,
-                    heartRateZone = walk.heart?.let { HeartRateZone.of(it.bpm, walk.status.profile.ageYears) },
+                    heartRateBpm = walk.bpm,
+                    heartRateZone = walk.bpm?.let { HeartRateZone.of(it, walk.status.profile.ageYears) },
                     companion = walk.companion,
                     showWatchTip = connected && walk.companion == CompanionState.AppNotInstalled && !walk.status.watchTipDismissed,
                 ),
@@ -247,7 +270,8 @@ class TreadmillViewModel(
     }
 
     /** Starts a workout of [kind] that the phone tracks; with the pad, starting the belt starts the walk instead. */
-    fun startWorkout(kind: WorkoutKind) = workouts.start(kind)
+    /** Starts a phone workout of [kind], following the course [courseId] where there is one. */
+    fun startWorkout(kind: WorkoutKind, courseId: String?) = workouts.start(kind, courseId)
     fun dismissStartRejected() = workouts.dismissStartRejected()
 
     fun pauseWorkout() = workouts.pause()
@@ -321,7 +345,11 @@ class TreadmillViewModel(
             distanceMeters = totals.meters,
             steps = totals.steps,
             activeKcal = activeKcal.roundToInt(),
-            paceSecondsPerKm = pace(totals.seconds, totals.meters),
+            paceSecondsPerKm = livePace(totals),
+            route = route,
+            course = course,
+            navigation = navigation,
+            navigationAlerts = navigationAlerts,
             weightEstimated = weight.source == WeightSource.Default,
             manualWeightKg = manualWeightKg,
             healthWeightKg = weight.kg.takeIf { weight.source == WeightSource.Health },
@@ -364,7 +392,14 @@ class TreadmillViewModel(
         avgHeartRate = avgHeartRate,
         maxHeartRate = maxHeartRate,
         energyFromHeartRate = energyFromHeartRate,
+        kind = kind,
+        route = route,
     )
+
+    private fun livePace(totals: PadCounters): Int? {
+        if (totals.meters != paceAt.meters || totals.seconds < paceAt.seconds) paceAt = totals
+        return pace(paceAt.seconds, paceAt.meters)
+    }
 
     private fun pace(seconds: Int, meters: Int): Int? =
         if (meters < MIN_PACE_METERS) null else (seconds * 1000L / meters).toInt()

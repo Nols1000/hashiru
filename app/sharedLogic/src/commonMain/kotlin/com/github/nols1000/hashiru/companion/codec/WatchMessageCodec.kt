@@ -1,6 +1,7 @@
 package com.github.nols1000.hashiru.companion.codec
 
 import com.github.nols1000.hashiru.companion.domain.WristCommand
+import com.github.nols1000.hashiru.companion.domain.WristNavigation
 import com.github.nols1000.hashiru.companion.domain.WristTelemetry
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
 import com.github.nols1000.hashiru.workout.domain.HeartRateZone
@@ -22,23 +23,29 @@ sealed interface WatchMessage {
  * in step with these examples:
  *
  * ```
- * T|1|Active|1|1|35|754|612|112|Aerobic|0   telemetry: phase, connected, running, speed (0.1 km/h),
- *                                            duration (s), distance (m), bpm, zone, can resume
- * C|1|SetSpeed|35   C|1|SetPaused|1   C|1|StopBelt|
- * H|1|1700000000000|112                      heart rate: epoch ms, bpm
- * A|1|1                                      ack
+ * T|2|Active|1|1|35|754|612|112|Aerobic|0|1|12|4380|1|0
+ *                          telemetry: phase, connected, running, speed (0.1 km/h), duration (s), distance (m),
+ *                          bpm, zone, can resume, then the course or five empty fields: on course,
+ *                          off course (m), remaining (m), joined, finished
+ * C|2|SetSpeed|35   C|2|SetPaused|1   C|2|StopBelt|
+ * H|2|1700000000000|112    heart rate: epoch ms, bpm
+ * A|2|1                    ack
  * ```
+ *
+ * Version 2 added the course to telemetry.
  *
  * Decoding returns null for anything it does not understand, including a newer version.
  */
 object WatchMessageCodec {
-    private const val VERSION = "1"
+    private const val VERSION = "2"
 
     fun encode(message: WatchMessage): ByteArray = when (message) {
         is WatchMessage.Telemetry -> with(message.telemetry) {
             listOf(
                 "T", VERSION, phase.name, flag(isConnected), flag(isRunning), speedTenths, durationSeconds, distanceMeters,
                 heartRateBpm ?: "", zone?.name ?: "", flag(canResume),
+                navigation?.let { flag(it.onCourse) } ?: "", navigation?.offCourseMeters ?: "", navigation?.remainingMeters ?: "",
+                navigation?.let { flag(it.joined) } ?: "", navigation?.let { flag(it.finished) } ?: "",
             )
         }
         is WatchMessage.Command -> when (val c = message.command) {
@@ -55,7 +62,7 @@ object WatchMessageCodec {
         if (f.size < 3 || f[1] != VERSION) return null
         when (f[0]) {
             "T" -> {
-                if (f.size != 11) return null
+                if (f.size != 16) return null
                 WatchMessage.Telemetry(
                     WristTelemetry(
                         phase = WorkoutPhase.valueOf(f[2]),
@@ -67,6 +74,11 @@ object WatchMessageCodec {
                         heartRateBpm = f[8].toIntOrNull(),
                         zone = f[9].takeIf { it.isNotEmpty() }?.let(HeartRateZone::valueOf),
                         canResume = flag(f[10]),
+                        navigation = if (f[11].isEmpty()) {
+                            null
+                        } else {
+                            WristNavigation(flag(f[11]), f[12].toInt(), f[13].toInt(), flag(f[14]), flag(f[15]))
+                        },
                     ),
                 )
             }

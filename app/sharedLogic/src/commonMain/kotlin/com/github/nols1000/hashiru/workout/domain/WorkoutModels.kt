@@ -13,6 +13,25 @@ data class PadCounters(val seconds: Int = 0, val meters: Int = 0, val steps: Int
     }
 }
 
+/**
+ * A workout's totals as the health store measures them, without pauses. Null means the store does not measure
+ * that value, and the recorder uses its own. [totalKcal] includes the resting part.
+ */
+data class TrackedTotals(
+    val seconds: Int,
+    val meters: Int? = null,
+    val steps: Int? = null,
+    val activeKcal: Double? = null,
+    val totalKcal: Double? = null,
+    val heartRate: HeartRateStats? = null,
+) {
+    /** The counters a phone workout is built from, once the store counts distance and steps. */
+    val counters: PadCounters? get() = if (meters != null && steps != null) PadCounters(seconds, meters, steps) else null
+}
+
+/** Heart rate over a workout so far. */
+data class HeartRateStats(val latestBpm: Int?, val avgBpm: Int, val maxBpm: Int)
+
 enum class PauseReason { BeltStopped, UserRequested, Disconnected }
 
 enum class DiscardReason { TooShort, UserDiscarded }
@@ -48,6 +67,16 @@ data class WorkoutSample(
 
 data class WorkoutPause(val startMs: Long, val endMs: Long)
 
+/** A position on an outdoor workout's route. [atMs] is epoch milliseconds; [accuracyM] the horizontal accuracy. */
+data class RoutePoint(
+    val atMs: Long,
+    val latitude: Double,
+    val longitude: Double,
+    /** Null where the position came without an altitude. */
+    val altitudeM: Double? = null,
+    val accuracyM: Double = 0.0,
+)
+
 sealed interface SyncState {
     /** Not written yet: waiting to be saved or for the user to decide on health access. */
     data object Pending : SyncState
@@ -80,10 +109,14 @@ data class WorkoutRecord(
     val syncState: SyncState = SyncState.Pending,
     val kind: WorkoutKind = WorkoutKind.IndoorWalk,
     val source: WorkoutSource = WorkoutSource.Pad,
+    /** Heart rate as the health store measured it; it outranks what [samples] hold. */
+    val heartRate: HeartRateStats? = null,
+    /** Where an outdoor workout went while active; empty indoors or without a position fix. */
+    val route: List<RoutePoint> = emptyList(),
 ) {
     val heartRateSeries: List<HeartRateSample> get() = samples.flatMap { it.heartRate?.series.orEmpty() }
-    val avgHeartRate: Int? get() = heartRateSeries.takeIf { it.isNotEmpty() }?.let { s -> s.sumOf { it.bpm } / s.size }
-    val maxHeartRate: Int? get() = samples.mapNotNull { it.heartRate?.maxBpm }.maxOrNull()
+    val avgHeartRate: Int? get() = heartRate?.avgBpm ?: heartRateSeries.takeIf { it.isNotEmpty() }?.let { s -> s.sumOf { it.bpm } / s.size }
+    val maxHeartRate: Int? get() = heartRate?.maxBpm ?: samples.mapNotNull { it.heartRate?.maxBpm }.maxOrNull()
 
     /** True when some of the energy came from heart rate. */
     val energyFromHeartRate: Boolean get() = samples.any { it.heartRate?.usedForEnergy == true }
