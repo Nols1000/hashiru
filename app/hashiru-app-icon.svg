@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>hashiru app icon</title>
+  <rect width="1024" height="1024" fill="#050505"/>
+  <text x="512" y="640" text-anchor="middle" fill="#F2F2EE" font-family="Hiragino Sans, Noto Sans JP, sans-serif" font-size="600" font-weight="600">走</text>
+  <path d="M342 780H682" fill="none" stroke="#D4FF3A" stroke-width="34" stroke-linecap="round"/>
+</svg>
