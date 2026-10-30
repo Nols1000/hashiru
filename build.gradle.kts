@@ -8,4 +8,17 @@ plugins {
     alias(libs.plugins.kotlinJvm) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.ktor) apply false
+    id("io.github.nols1000.release.ios")
+}
+
+releaseIos {
+    xcodeProject = layout.projectDirectory.dir("app/iosApp/iosApp.xcodeproj")
+    scheme = "iosApp"
+    teamId = providers.environmentVariable("APPLE_TEAM_ID").orElse(providers.gradleProperty("release.appleTeamId"))
+    bundleId = "com.github.nols1000.hashiru"
+    frameworkSearchPaths.from(
+        files("app/sharedLogic/build/bin/iosArm64/releaseFramework") {
+            builtBy(":app:sharedLogic:linkReleaseFrameworkIosArm64")
+        }
+    )
 }

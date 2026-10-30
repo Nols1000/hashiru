@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions: {}
+
+# Releases build N of version X.Y.Z from tag vX.Y.Z, where N is this workflow's run number + 1
+# (build 1 was the manual first upload to Google Play). Re-running a job reuses the run number,
+# which the stores reject once a build was uploaded.
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    environment: google-play-store-internal
+    permissions:
+      contents: read
+      id-token: write # Keyless Google auth through Workload Identity Federation
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.gradle/jdks
+          key: gradle-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle/gradle-daemon-jvm.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - run: ./gradlew check
+      - name: Publish to Google Play
+        env:
+          ANDROID_UPLOAD_KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/upload-keystore.p12"
+          base64 --decode <<< "$ANDROID_UPLOAD_KEYSTORE_B64" > "$ANDROID_KEYSTORE_FILE"
+          ./gradlew :app:androidApp:publishPlay :app:wearApp:publishPlay -Prelease.version="${GITHUB_REF_NAME#v}" -Prelease.buildNumber="$((GITHUB_RUN_NUMBER + 1))"
+
+  ios:
+    runs-on: macos-latest
+    environment: testflight
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.gradle/jdks
+            ~/.konan
+          key: gradle-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle/gradle-daemon-jvm.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - run: ./gradlew :app:sharedLogic:iosSimulatorArm64Test
+      - name: Publish to TestFlight
+        env:
+          ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          base64 --decode <<< "$ASC_KEY_P8_B64" > "$ASC_KEY_PATH"
+          ./gradlew publishTestFlight -Prelease.version="${GITHUB_REF_NAME#v}" -Prelease.buildNumber="$((GITHUB_RUN_NUMBER + 1))"
+
+  github-release:
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}

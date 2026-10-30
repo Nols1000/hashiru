@@ -1,6 +1,7 @@
 rootProject.name = "hashiru"
 
 pluginManagement {
+    includeBuild("gradle-plugins")
     repositories {
         google {
             mavenContent {
