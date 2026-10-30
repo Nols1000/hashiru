@@ -52,6 +52,10 @@ kotlin {
     }
 }
 
+compose.resources {
+    packageOfResClass = "com.github.nols1000.hashiru.resources"
+}
+
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }

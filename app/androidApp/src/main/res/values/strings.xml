@@ -1,3 +1,17 @@
 <resources>
     <string name="app_name">hashiru</string>
+
+    <string name="notification_channel_name">WalkingPad connection</string>
+    <string name="notification_channel_description">Shown while hashiru stays connected to your WalkingPad.</string>
+    <string name="notification_connecting">Waiting for your WalkingPad…</string>
+    <string name="notification_connected">Connected</string>
+    <string name="notification_running">%1$s km/h</string>
+    <string name="notification_walking">Walking</string>
+    <string name="notification_paused">Paused</string>
+    <string name="notification_reconnecting">Reconnecting…</string>
+    <!-- Duration · distance in km · speed in km/h -->
+    <string name="notification_walk">%1$s · %2$s km · %3$s km/h</string>
+    <string name="notification_action_pause">Pause</string>
+    <string name="notification_action_resume">Resume</string>
+    <string name="notification_action_end">End</string>
 </resources>

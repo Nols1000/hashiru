@@ -1,0 +1,4 @@
+<resources>
+    <!-- Launch window only; Compose draws everything else. API 29+ follows the system dark theme. -->
+    <style name="Theme.Hashiru" parent="@android:style/Theme.Material.Light.NoActionBar" />
+</resources>
