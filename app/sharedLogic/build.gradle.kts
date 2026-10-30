@@ -15,6 +15,23 @@ kotlin {
             isStatic = true
         }
     }
+    // The web viewer's logic, as an npm library with TypeScript definitions for app/webApp. Tests run on
+    // Node, which has WebCrypto, rather than in a headless browser.
+    js {
+        outputModuleName = "sharedLogic"
+        browser {
+            testTask { enabled = false }
+        }
+        nodejs()
+        binaries.library()
+        generateTypeScriptDefinitions()
+        compilerOptions {
+            target = "es2015"
+        }
+    }
+    compilerOptions {
+        optIn.add("kotlin.js.ExperimentalJsExport")
+    }
     android {
        namespace = "com.github.nols1000.hashiru.sharedLogic"
        compileSdk = libs.versions.android.compileSdk.get().toInt()

@@ -9,6 +9,10 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
     jvm()
+    js {
+        browser()
+        nodejs()
+    }
     android {
        namespace = "com.github.nols1000.hashiru.core"
        compileSdk = libs.versions.android.compileSdk.get().toInt()

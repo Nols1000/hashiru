@@ -55,3 +55,23 @@ jobs:
           -configuration Debug
           -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO
+
+  # The live-share viewer, as the KMP wizard's web template builds it. Node and npm come with the runner;
+  # dependencies are installed from the lockfile without running their install scripts.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.gradle/jdks
+          key: gradle-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle/gradle-daemon-jvm.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - run: ./gradlew :app:sharedLogic:jsNodeTest :app:sharedLogic:jsBrowserDevelopmentLibraryDistribution
+      - run: npm ci --ignore-scripts
+      - run: npm run build

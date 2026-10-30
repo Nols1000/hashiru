@@ -1,0 +1,13 @@
+{
+  "name": "hashiru",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "app/webApp",
+    "app/sharedLogic/build/dist/js/developmentLibrary"
+  ],
+  "scripts": {
+    "build": "cd app/webApp && npm run build",
+    "start": "cd app/webApp && npm run start"
+  }
+}

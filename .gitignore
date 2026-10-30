@@ -17,6 +17,7 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+**/dist/
 
 # App Store Connect API keys
 *.p8

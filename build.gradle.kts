@@ -11,6 +11,16 @@ plugins {
     id("io.github.nols1000.release.ios")
 }
 
+// Kotlin/JS uses the Node.js installed on the machine (and on CI runners) instead of downloading its own.
+allprojects {
+    plugins.withType<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin> {
+        the<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec>().download = false
+    }
+}
+plugins.withType<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootPlugin> {
+    the<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec>().download = false
+}
+
 releaseIos {
     xcodeProject = layout.projectDirectory.dir("app/iosApp/iosApp.xcodeproj")
     scheme = "iosApp"
