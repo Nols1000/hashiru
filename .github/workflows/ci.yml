@@ -54,6 +54,7 @@ jobs:
           -scheme iosApp
           -configuration Debug
           -destination 'generic/platform=iOS Simulator'
+          ARCHS=arm64
           CODE_SIGNING_ALLOWED=NO
 
   # The live-share viewer, as the KMP wizard's web template builds it. Node and npm come with the runner;
