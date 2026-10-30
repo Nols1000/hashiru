@@ -9,7 +9,7 @@ resources:
 images:
   - name: hashiru-server
     newName: ghcr.io/nols1000/hashiru-server
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:56e14e4d24edb2f9786dcb2f27a2a8a0b9b145a015a4f0ab1525cf2f3b6d32c8
   - name: hashiru-web
     newName: ghcr.io/nols1000/hashiru-web
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:041ddf3af8614de38c00d6ffaa0eabe444656e2ce7f1f25afe5411e64f1193e9
