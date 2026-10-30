@@ -32,10 +32,18 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":core"))
-            // put your Multiplatform dependencies here
+            api(libs.kotlinx.coroutines.core)
+            api(libs.androidx.lifecycle.viewmodel)
+        }
+        androidMain.dependencies {
+            // Google's own client; it brings Guava along. It needs API 26, the adapter only uses it on API 28+.
+            implementation(libs.androidx.healthConnect)
+            // The Wear OS Data Layer; Google's, and the only way to reach the watch app.
+            implementation(libs.playServices.wearable)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }
