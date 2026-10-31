@@ -102,6 +102,9 @@ final class ShareCipher: NSObject, ShareCipherPort {
         if let value {
             var item = query
             item[kSecValueData as String] = value.data
+            // iOS relaunches the app in the background (Bluetooth restoration,
+            // HealthKit) mostly while the phone is locked; the share must survive that.
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             let status = SecItemAdd(item as CFDictionary, nil)
             precondition(status == errSecSuccess, "Could not store share secret (status \(status))")
         } else {
@@ -120,6 +123,14 @@ final class ShareCipher: NSObject, ShareCipherPort {
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else { return nil }
+        // Older builds stored the secret as WhenUnlocked; move it to the class putSecret uses.
+        let match: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: alias,
+        ]
+        let accessible = [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
+        SecItemUpdate(match as CFDictionary, accessible as CFDictionary)
         return kotlinBytes(data)
     }
 
