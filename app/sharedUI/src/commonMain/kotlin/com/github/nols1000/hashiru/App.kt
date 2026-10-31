@@ -87,6 +87,10 @@ import com.github.nols1000.hashiru.resources.speed_unit
 import com.github.nols1000.hashiru.resources.status_connected
 import com.github.nols1000.hashiru.resources.status_connecting
 import com.github.nols1000.hashiru.resources.status_disconnected
+import com.github.nols1000.hashiru.share.engine.LiveShareEngine
+import com.github.nols1000.hashiru.share.presentation.ShareUi
+import com.github.nols1000.hashiru.share.presentation.ShareUiPhase
+import com.github.nols1000.hashiru.share.presentation.ShareViewModel
 import com.github.nols1000.hashiru.theme.HashiruTheme
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillCommand
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillError
@@ -143,6 +147,11 @@ class TreadmillActions(
     val installHealthConnect: (() -> Unit)? = null,
     /** Opens the store listing of the watch app. */
     val installWatchApp: (() -> Unit)? = null,
+    val startShare: (includeHeartRate: Boolean) -> Unit = {},
+    val stopShare: () -> Unit = {},
+    val dismissShareEnded: () -> Unit = {},
+    /** Offers the share's link to other apps; null where the platform has no way to. */
+    val shareLink: ((String) -> Unit)? = null,
 )
 
 /** What only the host platform can do; each is null where it cannot. */
@@ -153,19 +162,28 @@ class PlatformActions(
     val openAppSettings: (() -> Unit)? = null,
     val installHealthConnect: (() -> Unit)? = null,
     val installWatchApp: (() -> Unit)? = null,
+    val shareLink: ((String) -> Unit)? = null,
 )
 
 @Composable
-fun App(session: TreadmillSession, workouts: WorkoutRecorder, relay: WatchRelay, platform: PlatformActions = PlatformActions()) {
+fun App(
+    session: TreadmillSession,
+    workouts: WorkoutRecorder,
+    relay: WatchRelay,
+    share: LiveShareEngine,
+    platform: PlatformActions = PlatformActions(),
+) {
     val treadmill = viewModel { TreadmillViewModel(session) }
     val workout = viewModel { WorkoutViewModel(session.connectionState, workouts, relay) }
+    val sharing = viewModel { ShareViewModel(share) }
     val treadmillState by treadmill.uiState.collectAsStateWithLifecycle()
     val workoutState by workout.uiState.collectAsStateWithLifecycle()
+    val shareState by sharing.uiState.collectAsStateWithLifecycle()
     LifecycleResumeEffect(workout) {
         workout.onForeground()
         onPauseOrDispose {}
     }
-    val actions = remember(treadmill, workout, platform) {
+    val actions = remember(treadmill, workout, sharing, platform) {
         TreadmillActions(
             connect = treadmill::connect,
             pair = treadmill::pair,
@@ -193,10 +211,14 @@ fun App(session: TreadmillSession, workouts: WorkoutRecorder, relay: WatchRelay,
             openAppSettings = platform.openAppSettings,
             installHealthConnect = platform.installHealthConnect,
             installWatchApp = platform.installWatchApp,
+            startShare = sharing::startShare,
+            stopShare = sharing::stopShare,
+            dismissShareEnded = sharing::dismissShareEnded,
+            shareLink = platform.shareLink,
         )
     }
     HashiruTheme {
-        TreadmillScreen(treadmillState, workoutState, actions)
+        TreadmillScreen(treadmillState, workoutState, actions, shareState)
     }
 }
 
@@ -205,7 +227,7 @@ fun App(session: TreadmillSession, workouts: WorkoutRecorder, relay: WatchRelay,
  * is being restored, and the summary of a finished walk slides up over whatever is below.
  */
 @Composable
-fun TreadmillScreen(state: TreadmillUiState, workout: WorkoutUiState, actions: TreadmillActions) {
+fun TreadmillScreen(state: TreadmillUiState, workout: WorkoutUiState, actions: TreadmillActions, share: ShareUi = ShareUi()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
     // Blocking errors take over the connect screen and a failed stop gets a banner during a walk; the rest is a snackbar.
@@ -231,7 +253,7 @@ fun TreadmillScreen(state: TreadmillUiState, workout: WorkoutUiState, actions: T
     var editingProfile by rememberSaveable { mutableStateOf(false) }
 
     if (workout.isInProgress) {
-        LiveWorkoutScreen(state, workout, actions, snackbarHostState)
+        LiveWorkoutScreen(state, workout, share, actions, snackbarHostState)
     } else {
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
             // Fill the viewport so weighted spacers work, but scroll when large font scales overflow it.
@@ -513,9 +535,14 @@ internal fun BeltButton(isRunning: Boolean, onToggleBelt: () -> Unit) {
 }
 
 @Composable
-private fun PreviewScreen(state: TreadmillUiState, workout: WorkoutUiState = WorkoutUiState(), darkTheme: Boolean = false) {
+private fun PreviewScreen(
+    state: TreadmillUiState,
+    workout: WorkoutUiState = WorkoutUiState(),
+    share: ShareUi = ShareUi(),
+    darkTheme: Boolean = false,
+) {
     HashiruTheme(darkTheme = darkTheme, dynamicColor = false) {
-        TreadmillScreen(state, workout, TreadmillActions())
+        TreadmillScreen(state, workout, TreadmillActions(shareLink = {}), share)
     }
 }
 
@@ -554,6 +581,28 @@ private val summaryPreview = WorkoutSummaryUi(
 @Preview
 @Composable
 fun TreadmillScreenWalkingPreview() = PreviewScreen(runningPreviewState, walkingPreview)
+
+@Preview
+@Composable
+fun TreadmillScreenSharingPreview() = PreviewScreen(
+    runningPreviewState,
+    walkingPreview,
+    ShareUi(phase = ShareUiPhase.Live, link = "https://hashiru.tw-esport.de/s/abc#k", watchers = 2, includeHeartRate = true),
+)
+
+@Preview
+@Composable
+fun TreadmillScreenSharingOfflinePreview() = PreviewScreen(
+    runningPreviewState,
+    walkingPreview,
+    ShareUi(phase = ShareUiPhase.Live, link = "https://hashiru.tw-esport.de/s/abc#k", offline = true),
+    darkTheme = true,
+)
+
+@Preview
+@Composable
+fun TreadmillScreenSharingFailedPreview() =
+    PreviewScreen(runningPreviewState, walkingPreview, ShareUi(phase = ShareUiPhase.Failed))
 
 @Preview
 @Composable

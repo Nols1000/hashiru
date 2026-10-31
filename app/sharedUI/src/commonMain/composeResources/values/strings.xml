@@ -108,6 +108,23 @@
     <string name="action_end">Hold to end</string>
     <string name="action_end_description">End walk</string>
 
+    <string name="action_share_workout">Share workout</string>
+    <string name="share_include_heart_rate">Include heart rate</string>
+    <string name="action_share">Share</string>
+    <string name="share_no_watchers">No one watching yet</string>
+    <plurals name="share_watchers">
+        <item quantity="one">%1$d watching</item>
+        <item quantity="other">%1$d watching</item>
+    </plurals>
+    <string name="share_heart_rate_shared">Heart rate shared</string>
+    <string name="share_heart_rate_not_shared">Heart rate not shared</string>
+    <string name="share_reconnecting">Reconnecting…</string>
+    <string name="action_share_link">Share link</string>
+    <string name="action_stop_sharing">Stop sharing</string>
+    <string name="share_ended">Sharing ended</string>
+    <string name="share_unavailable_title">Sharing unavailable</string>
+    <string name="share_unavailable_body">Sharing was refused by the server.</string>
+
     <string name="summary_title">Walk complete</string>
     <string name="summary_total_kcal">%1$s kcal total</string>
     <string name="summary_estimated">Calories use an estimated weight of 70 kg.</string>

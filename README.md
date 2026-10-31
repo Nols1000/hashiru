@@ -45,6 +45,16 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
   The IDE's `webApp` run configuration does all of this. `npm run build` puts the static site in `app/webApp/dist`.
 - iOS app: open the [/app/iosApp](./app/iosApp) directory in Xcode and run it from there.
 
+Live sharing uses the relay at `https://hashiru.tw-esport.de/api` and links to the viewer at `https://hashiru.tw-esport.de`.
+To share to a local relay (`./gradlew :server:run`) and viewer (`npm run start` in `app/webApp`) instead:
+
+- Android, debug builds only: pass `-Phashiru.relay=http://10.0.2.2:8080/api -Phashiru.viewer=http://localhost:5173`, as in
+  `./gradlew :app:androidApp:installDebug -Phashiru.relay=…`, or put both in `~/.gradle/gradle.properties`. `10.0.2.2` is
+  the development machine as the emulator sees it; on a device, run `adb reverse tcp:8080 tcp:8080` and use
+  `http://localhost:8080/api`. Debug builds allow plain HTTP to these two hosts only; release builds use HTTPS only.
+- iOS, debug builds only: set `HASHIRU_RELAY` (such as `http://localhost:8080/api`) and `HASHIRU_VIEWER` in the
+  scheme's environment variables.
+
 ### Running tests
 
 Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:

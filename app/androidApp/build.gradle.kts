@@ -11,6 +11,10 @@ kotlin {
         jvmTarget = JvmTarget.JVM_11
     }
 }
+/** Where live shares go, and where viewers open their links. */
+val RELEASE_RELAY_URL = "https://hashiru.tw-esport.de/api"
+val RELEASE_VIEWER_URL = "https://hashiru.tw-esport.de"
+
 dependencies {
     implementation(project(":app:sharedUI"))
 
@@ -34,6 +38,8 @@ android {
         applicationId = "com.github.nols1000.hashiru"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
+        buildConfigField("String", "RELAY_URL", "\"$RELEASE_RELAY_URL\"")
+        buildConfigField("String", "VIEWER_URL", "\"$RELEASE_VIEWER_URL\"")
     }
     packaging {
         resources {
@@ -41,6 +47,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // A local relay, as with `-Phashiru.relay=http://10.0.2.2:8080/api` from the emulator.
+            providers.gradleProperty("hashiru.relay").orNull?.let { buildConfigField("String", "RELAY_URL", "\"$it\"") }
+            providers.gradleProperty("hashiru.viewer").orNull?.let { buildConfigField("String", "VIEWER_URL", "\"$it\"") }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -55,6 +66,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

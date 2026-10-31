@@ -21,6 +21,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.net.toUri
 import com.github.nols1000.hashiru.companion.adapter.MockWatchCompanionAdapter
 import com.github.nols1000.hashiru.companion.engine.WatchRelay
+import com.github.nols1000.hashiru.share.adapter.MockShareRelayAdapter
+import com.github.nols1000.hashiru.share.engine.LiveShareEngine
+import com.github.nols1000.hashiru.share.port.ShareCipherPort
 import com.github.nols1000.hashiru.treadmill.adapter.AndroidCompanionAssociationAdapter
 import com.github.nols1000.hashiru.treadmill.adapter.IntentSenderLauncher
 import com.github.nols1000.hashiru.treadmill.adapter.MockAssociationAdapter
@@ -92,9 +95,12 @@ class MainActivity : ComponentActivity() {
             },
             // The phone's listing offers to install on a connected watch too.
             installWatchApp = { openStoreListing(packageName) },
+            shareLink = { link ->
+                open(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link), null))
+            },
         )
         setContent {
-            App(session = hashiru.session, workouts = hashiru.workouts, relay = hashiru.relay, platform = platform)
+            App(session = hashiru.session, workouts = hashiru.workouts, relay = hashiru.relay, share = hashiru.share, platform = platform)
         }
     }
 
@@ -160,11 +166,25 @@ private const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
 @Composable
 fun AppAndroidPreview() {
     val session = TreadmillSession(MockTransportAdapter(), MockAssociationAdapter())
-    val workouts = WorkoutRecorder(session, MockHealthSyncAdapter(), InMemoryKeyValueStore())
+    val storage = InMemoryKeyValueStore()
+    val workouts = WorkoutRecorder(session, MockHealthSyncAdapter(), storage)
     val relay = WatchRelay(session, workouts, MockWatchCompanionAdapter())
+    val share = LiveShareEngine(workouts, MockShareRelayAdapter(), PreviewShareCipher, { 80 }, storage, "https://example.org")
     // In dependency order, as the app does.
     session.start()
     workouts.start()
     relay.start()
-    App(session = session, workouts = workouts, relay = relay)
+    share.start()
+    App(session = session, workouts = workouts, relay = relay, share = share)
+}
+
+/** Previews have no Keystore; a share started in one is sealed with zero keys and goes nowhere. */
+private object PreviewShareCipher : ShareCipherPort {
+    override fun randomBytes(count: Int) = ByteArray(count)
+    override fun hmacSha512(key: ByteArray, data: ByteArray) = ByteArray(64)
+    override fun aesGcmSeal(key: ByteArray, nonce: ByteArray, aad: ByteArray, plaintext: ByteArray) = plaintext + ByteArray(16)
+    override fun createSigningKey(alias: String) = ByteArray(65)
+    override fun sign(alias: String, data: ByteArray) = ByteArray(64)
+    override fun putSecret(alias: String, value: ByteArray?) {}
+    override fun secret(alias: String): ByteArray? = null
 }

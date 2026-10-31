@@ -107,6 +107,7 @@ import com.github.nols1000.hashiru.theme.LightSystemBarIcons
 import com.github.nols1000.hashiru.theme.WorkoutTheme
 import com.github.nols1000.hashiru.theme.zoneColor
 import com.github.nols1000.hashiru.companion.domain.CompanionState
+import com.github.nols1000.hashiru.share.presentation.ShareUi
 import com.github.nols1000.hashiru.workout.domain.HeartRateZone
 import com.github.nols1000.hashiru.treadmill.presentation.TreadmillUiState
 import com.github.nols1000.hashiru.workout.presentation.WorkoutUiState
@@ -121,12 +122,13 @@ private const val HOLD_TO_END_MS = 900
 
 /**
  * The walk in progress, readable from the treadmill: the duration as the hero, the rest in pills, and
- * large controls at the bottom. Ending takes a press and hold so a stray tap never ends a walk.
+ * large controls at the bottom, under live sharing. Ending takes a press and hold so a stray tap never ends a walk.
  */
 @Composable
 internal fun LiveWorkoutScreen(
     state: TreadmillUiState,
     workout: WorkoutUiState,
+    share: ShareUi,
     actions: TreadmillActions,
     snackbarHostState: SnackbarHostState,
 ) {
@@ -165,6 +167,8 @@ internal fun LiveWorkoutScreen(
                     }
                     Spacer(Modifier.weight(1f))
                     Spacer(Modifier.height(24.dp))
+                    ShareControls(share, actions)
+                    Spacer(Modifier.height(12.dp))
                     WorkoutControls(workout, actions)
                 }
             }
