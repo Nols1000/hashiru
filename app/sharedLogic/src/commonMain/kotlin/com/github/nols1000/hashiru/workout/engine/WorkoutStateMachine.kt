@@ -23,8 +23,12 @@ object WorkoutRules {
     /** Length of one health sample. Short windows let the health store pick one step source per minute. */
     const val WINDOW_MS = 60_000L
 
-    /** A phone workout that the health store has not confirmed by then is not started. */
-    const val START_TIMEOUT_MS = 10_000L
+    /**
+     * A phone workout that the health store has not confirmed by then is not started. Only for a store that never
+     * answers: well past its own waits, such as launching the watch and waiting for its mirror before counting on
+     * the phone instead.
+     */
+    const val START_TIMEOUT_MS = 30_000L
 
     /** A belt that stays stopped this long ends the walk. */
     const val PAUSE_TIMEOUT_MS = 5 * 60_000L
