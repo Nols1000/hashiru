@@ -13,6 +13,7 @@ import kotlin.test.assertNull
 class WalkingPadPacketCodecTest {
 
     private fun bytes(vararg values: Int) = ByteArray(values.size) { values[it].toByte() }
+    private fun hex(text: String) = ByteArray(text.length / 2) { text.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
     @Test
     fun encodesPing() {
@@ -85,7 +86,9 @@ class WalkingPadPacketCodecTest {
             0x00, 0x01, 0x2C, // 300 s
             0x00, 0x00, 0x19, // 25 * 10 m
             0x00, 0x01, 0xF4, // 500 steps
-            0x23, 0x00, 0x00, 0x00, 0x00, 0xFD,
+            0x23, 0x00, 0x00, 0x00,
+            0x25, // checksum
+            0xFD,
         )
         val status = assertNotNull(WalkingPadPacketCodec.decodeStatus(packet))
         assertEquals(BeltState.Running, status.beltState)
@@ -94,6 +97,38 @@ class WalkingPadPacketCodecTest {
         assertEquals(300, status.timeSeconds)
         assertEquals(250, status.distanceMeters)
         assertEquals(500, status.steps)
+    }
+
+    @Test
+    fun decodesPacketsCapturedFromARealPad() {
+        // From the ph4-walkingpad README and its stats sample.
+        val readme = assertNotNull(WalkingPadPacketCodec.decodeStatus(hex("f8a2010f01000fd10000ab0012ae3c0000003afd")))
+        assertEquals(BeltState.Running, readme.beltState)
+        assertEquals(1.5, readme.speedKmh)
+        assertEquals(4049, readme.timeSeconds)
+        assertEquals(1710, readme.distanceMeters)
+        assertEquals(4782, readme.steps)
+        listOf(
+            "f8a2013c0100022a00004f0003d1b4000000e3fd",
+            "f8a2013c0100022a00004f0003d2b4000000e4fd",
+            "f8a2013c0100022b00004f0003d4b4000000e7fd",
+            "f8a2013c0100022c00004f0003d5b4000000e9fd",
+            "f8a2013c0100022d0000500003d6b4000000ecfd",
+        ).forEach { assertNotNull(WalkingPadPacketCodec.decodeStatus(hex(it)), it) }
+    }
+
+    @Test
+    fun rejectsStatusWithBadChecksum() {
+        val packet = WalkingPadPacketCodec.encodeStatus(1, 30, 1, timeSeconds = 90, distanceMeters = 80, steps = 110)
+        assertNull(WalkingPadPacketCodec.decodeStatus(packet.copyOf().also { it[10] = (it[10] + 1).toByte() }))
+        assertNull(WalkingPadPacketCodec.decodeStatus(packet.copyOf().also { it[18] = (it[18] + 1).toByte() }))
+    }
+
+    @Test
+    fun rejectsStatusWithWrongFooterOrTruncated() {
+        val packet = WalkingPadPacketCodec.encodeStatus(1, 30, 1, timeSeconds = 90, distanceMeters = 80, steps = 110)
+        assertNull(WalkingPadPacketCodec.decodeStatus(packet.copyOf().also { it[19] = 0x00 }))
+        assertNull(WalkingPadPacketCodec.decodeStatus(packet.copyOf(15)))
     }
 
     @Test

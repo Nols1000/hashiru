@@ -15,8 +15,8 @@ data class WalkingPadStatus(
 /**
  * KingSmith WalkingPad wire format, following ph4-walkingpad (`ph4_walkingpad/pad.py`).
  *
- * Commands: `F7 A2 <op> <arg> <checksum> FD`. Status responses: `F8 A2 <state> <speed> <mode> ...`.
- * The checksum is the sum of every byte between the header and the checksum itself, mod 256.
+ * Commands: `F7 A2 <op> <arg> <checksum> FD`. Status responses: `F8 A2 <state> <speed> <mode> ... <checksum> FD`.
+ * The checksum is the sum of every byte between the header and the checksum itself, mod 256, in both directions.
  */
 object WalkingPadPacketCodec {
     const val COMMAND_HEADER: Byte = 0xF7.toByte()
@@ -33,7 +33,7 @@ object WalkingPadPacketCodec {
     private const val OP_SWITCH_MODE = 0x02
     private const val OP_START_BELT = 0x04
 
-    private const val MIN_STATUS_SIZE = 14
+    private const val MIN_STATUS_SIZE = 16
 
     fun encodePing(): ByteArray = command(OP_PING, 0)
     fun encodeSwitchMode(mode: Int): ByteArray = command(OP_SWITCH_MODE, mode)
@@ -57,8 +57,10 @@ object WalkingPadPacketCodec {
     internal fun decodeSetSpeed(bytes: ByteArray): Int? =
         if (bytes.size == 6 && bytes[0] == COMMAND_HEADER && bytes.u8(2) == OP_SET_SPEED) bytes.u8(3) else null
 
+    /** Null for anything but a whole status packet: a garbled one could look like a pad reset. */
     fun decodeStatus(bytes: ByteArray): WalkingPadStatus? {
         if (bytes.size < MIN_STATUS_SIZE || bytes[0] != RESPONSE_HEADER || bytes[1] != STATUS_OPCODE) return null
+        if (bytes.last() != FOOTER || bytes[bytes.size - 2] != checksum(bytes)) return null
         return WalkingPadStatus(
             beltState = BeltState.fromCode(bytes.u8(2)),
             speedKmh = bytes.u8(3) / 10.0,
