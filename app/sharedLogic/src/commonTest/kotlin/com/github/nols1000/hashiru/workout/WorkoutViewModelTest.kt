@@ -52,12 +52,12 @@ class WorkoutViewModelTest {
     /** The workout screens' two presenters; the treadmill's drives the pad the walk is recorded from. */
     private class Screens(val treadmill: TreadmillViewModel, val workout: WorkoutViewModel)
 
-    private fun TestScope.screensFor(transport: MockTransportAdapter): Screens {
+    private fun TestScope.screensFor(transport: MockTransportAdapter, health: MockHealthSyncAdapter = MockHealthSyncAdapter()): Screens {
         // Like the app's session scope, a supervisor, so a failed connection attempt fails only the caller.
         val scope = CoroutineScope(backgroundScope.coroutineContext + SupervisorJob(backgroundScope.coroutineContext[Job]))
         val session = TreadmillSession(transport, MockAssociationAdapter(), scope, testScheduler.timeSource)
         val workouts = WorkoutRecorder(
-            session, MockHealthSyncAdapter(), WorkoutStore(InMemoryKeyValueStore()), backgroundScope, { testScheduler.currentTime }, { "walk" },
+            session, health, WorkoutStore(InMemoryKeyValueStore()), backgroundScope, { testScheduler.currentTime }, { "walk" },
         )
         val relay = WatchRelay(session, workouts, MockWatchCompanionAdapter(simulateHeartRate = false), backgroundScope)
         session.start()
@@ -129,6 +129,35 @@ class WorkoutViewModelTest {
         viewModel.dismissSummary()
         runCurrent()
         assertNull(viewModel.uiState.value.summary)
+    }
+
+    @Test
+    fun aWalkTheStoreCouldNotDeleteSaysSoAndCanBeSavedAgain() = runTest(dispatcher) {
+        val transport = MockTransportAdapter(targetSpeedTenths = 30, rampStepTenths = 10, timeSource = testScheduler.timeSource)
+        val health = MockHealthSyncAdapter()
+        val screens = screensFor(transport, health)
+        val viewModel = screens.workout
+        screens.treadmill.connect()
+        advanceTimeBy(600)
+        viewModel.connectHealth()
+        screens.treadmill.toggleBelt()
+        advanceTimeBy(120_000)
+        viewModel.endWorkout()
+        advanceTimeBy(3_000)
+        assertEquals(SyncUi.Saved, viewModel.uiState.value.summary?.sync)
+
+        health.failNextDelete = IllegalStateException("Store unavailable")
+        viewModel.deleteSummary()
+        runCurrent()
+        // Not the save-failure notice: the walk was saved, and only the delete failed.
+        with(viewModel.uiState.value.summary) {
+            assertEquals(SyncUi.DeleteFailed, this?.sync)
+            assertEquals("Store unavailable", this?.syncMessage)
+        }
+
+        viewModel.retrySync()
+        runCurrent()
+        assertEquals(SyncUi.Saved, viewModel.uiState.value.summary?.sync)
     }
 
     @Test

@@ -86,6 +86,12 @@ sealed interface SyncState {
     data object Saved : SyncState
     data class Failed(val message: String) : SyncState
 
+    /**
+     * The user deleted the walk but the health store could not remove it, so it may hold all or part of it. The
+     * walk is kept here and written again in full on the next sync; then it can be deleted once more.
+     */
+    data class DeleteFailed(val message: String) : SyncState
+
     /** The user declined health access; the walk is kept on this device only. */
     data object NotAuthorized : SyncState
 

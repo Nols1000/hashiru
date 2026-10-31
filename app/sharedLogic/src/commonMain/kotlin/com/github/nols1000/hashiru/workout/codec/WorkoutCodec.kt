@@ -53,7 +53,7 @@ object WorkoutCodec {
 
     fun encodeRecord(r: WorkoutRecord): String = listOf(
         VERSION, r.id, r.startMs, r.endMs, r.activeSeconds, r.distanceMeters, r.steps, r.activeKcal, r.totalKcal,
-        r.weight.kg, r.weight.source.name, syncName(r.syncState), (r.syncState as? SyncState.Failed)?.message?.let(::clean) ?: "",
+        r.weight.kg, r.weight.source.name, syncName(r.syncState), syncMessage(r.syncState)?.let(::clean) ?: "",
         encodePauses(r.pauses), encodeSamples(r.samples), r.kind.activity.name, r.kind.location.name, r.source.name,
         r.heartRate?.let { "${it.latestBpm ?: ""},${it.avgBpm},${it.maxBpm}" } ?: "", encodeRoute(r.route),
     ).joinToString("|")
@@ -184,8 +184,15 @@ object WorkoutCodec {
         SyncState.Busy -> "Busy"
         SyncState.Saved -> "Saved"
         is SyncState.Failed -> "Failed"
+        is SyncState.DeleteFailed -> "DeleteFailed"
         SyncState.NotAuthorized -> "NotAuthorized"
         SyncState.Unavailable -> "Unavailable"
+    }
+
+    private fun syncMessage(state: SyncState) = when (state) {
+        is SyncState.Failed -> state.message
+        is SyncState.DeleteFailed -> state.message
+        else -> null
     }
 
     private fun syncState(name: String, message: String): SyncState = when (name) {
@@ -193,6 +200,7 @@ object WorkoutCodec {
         "Busy" -> SyncState.Busy
         "Saved" -> SyncState.Saved
         "Failed" -> SyncState.Failed(message)
+        "DeleteFailed" -> SyncState.DeleteFailed(message)
         "NotAuthorized" -> SyncState.NotAuthorized
         "Unavailable" -> SyncState.Unavailable
         else -> error("Unknown sync state $name")

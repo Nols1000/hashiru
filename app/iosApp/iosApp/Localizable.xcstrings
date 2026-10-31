@@ -178,6 +178,9 @@
     "Couldn’t Connect" : {
 
     },
+    "Couldn’t Delete from Apple Health" : {
+
+    },
     "Couldn’t Load Your Walks" : {
 
     },
@@ -585,6 +588,9 @@
 
     },
     "The file is damaged." : {
+
+    },
+    "The walk is kept. Try again to save it in full, then delete it." : {
 
     },
     "This Device Has No Bluetooth" : {

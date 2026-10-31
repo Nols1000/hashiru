@@ -56,6 +56,23 @@ class WorkoutCodecTest {
     }
 
     @Test
+    fun aWalkTheStoreCouldNotDeleteRoundTrips() {
+        val kept = record.copy(syncState = SyncState.DeleteFailed("Store | busy; later"))
+
+        assertEquals(kept.copy(syncState = SyncState.DeleteFailed("Store  busy later")), WorkoutCodec.decodeRecord(WorkoutCodec.encodeRecord(kept)))
+    }
+
+    @Test
+    fun recordsSavedBeforeDeleteFailedStillDecode() {
+        // Records written before the state existed carry only the names it sits beside; each reads as it did.
+        val failed = WorkoutCodec.encodeRecord(record.copy(syncState = SyncState.Failed("Rate limited")))
+        val saved = WorkoutCodec.encodeRecord(record.copy(syncState = SyncState.Saved)).replaceFirst("7|", "4|").removeSuffix("||")
+
+        assertEquals(SyncState.Failed("Rate limited"), WorkoutCodec.decodeRecord(failed)?.syncState)
+        assertEquals(SyncState.Saved, WorkoutCodec.decodeRecord(saved)?.syncState)
+    }
+
+    @Test
     fun recordListsRoundTrip() {
         val records = listOf(record.copy(syncState = SyncState.Saved), record.copy(id = "b", pauses = emptyList(), samples = emptyList(), syncState = SyncState.Pending), record.copy(id = "c", syncState = SyncState.Busy))
 

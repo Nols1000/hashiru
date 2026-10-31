@@ -264,8 +264,8 @@ class WorkoutRecorder internal constructor(
 
     /**
      * Removes the last walk from the health store and from this device. Should the store fail to delete it, the
-     * walk stays, marked as not saved: the store may still hold all or part of it, so the next retry writes it
-     * again in full, and the user can delete it once more.
+     * walk stays, marked [SyncState.DeleteFailed] (or [SyncState.Busy] while the phone is locked): the store may
+     * still hold all or part of it, so the next retry writes it again in full, and the user can delete it once more.
      */
     fun deleteSummary() {
         val record = summary ?: return
@@ -279,7 +279,7 @@ class WorkoutRecorder internal constructor(
                 } catch (e: HealthStoreBusyException) {
                     SyncState.Busy
                 } catch (e: Exception) {
-                    SyncState.Failed(e.message ?: "Could not delete the workout")
+                    SyncState.DeleteFailed(e.message ?: "Could not delete the workout")
                 }
                 if (failed != null) {
                     updateSync(record.id, failed)

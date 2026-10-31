@@ -94,8 +94,11 @@ data class WorkoutUiState(
 /** The state before anything is known; for Swift, which cannot use the constructor's default arguments. */
 fun initialWorkoutUiState(): WorkoutUiState = WorkoutUiState()
 
-/** [Busy]: the health store cannot be written right now (phone locked); the walk is saved on the next foreground. */
-enum class SyncUi { Saving, WaitingForAccess, Busy, Saved, Failed, NotSaved, Unavailable }
+/**
+ * [Busy]: the health store cannot be written right now (phone locked); the walk is saved on the next foreground.
+ * [DeleteFailed]: the store could not delete the walk; it is kept, and a retry writes it again so it can be deleted.
+ */
+enum class SyncUi { Saving, WaitingForAccess, Busy, Saved, Failed, DeleteFailed, NotSaved, Unavailable }
 
 data class WorkoutSummaryUi(
     val startEpochMs: Long,
@@ -254,10 +257,15 @@ class WorkoutViewModel(
             SyncState.Busy -> SyncUi.Busy
             SyncState.Saved -> SyncUi.Saved
             is SyncState.Failed -> SyncUi.Failed
+            is SyncState.DeleteFailed -> SyncUi.DeleteFailed
             SyncState.NotAuthorized -> SyncUi.NotSaved
             SyncState.Unavailable -> SyncUi.Unavailable
         },
-        syncMessage = (syncState as? SyncState.Failed)?.message,
+        syncMessage = when (val state = syncState) {
+            is SyncState.Failed -> state.message
+            is SyncState.DeleteFailed -> state.message
+            else -> null
+        },
         avgHeartRate = avgHeartRate,
         maxHeartRate = maxHeartRate,
         energyFromHeartRate = energyFromHeartRate,

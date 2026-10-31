@@ -266,7 +266,7 @@ class WorkoutRecorderTest {
         runCurrent()
 
         assertNotNull(health.saved["walk-1"])
-        assertEquals(SyncState.Failed("Store unavailable"), recorder.status.value.summary?.syncState)
+        assertEquals(SyncState.DeleteFailed("Store unavailable"), recorder.status.value.summary?.syncState)
         val (_, relaunched) = recorder()
         assertEquals("walk-1", relaunched.status.value.summary?.id)
 

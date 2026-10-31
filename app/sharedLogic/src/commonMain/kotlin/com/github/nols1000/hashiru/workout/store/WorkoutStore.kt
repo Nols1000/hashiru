@@ -138,4 +138,5 @@ class WorkoutStore(private val kv: KeyValueStorePort) {
 }
 
 val WorkoutRecord.needsSync: Boolean
-    get() = syncState == SyncState.Pending || syncState == SyncState.Busy || syncState is SyncState.Failed
+    get() = syncState == SyncState.Pending || syncState == SyncState.Busy || syncState is SyncState.Failed ||
+        syncState is SyncState.DeleteFailed

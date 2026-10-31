@@ -120,6 +120,8 @@
     <string name="sync_busy">Saves to Health Connect when you unlock your phone.</string>
     <string name="sync_failed">Couldn’t save to Health Connect</string>
     <string name="sync_failed_details">Details: %1$s</string>
+    <string name="sync_delete_failed">Couldn’t delete from Health Connect</string>
+    <string name="sync_delete_failed_body">The walk is kept. Try again to save it in full, then delete it.</string>
     <string name="sync_not_saved">Kept on this device only.</string>
     <string name="sync_unavailable">Health Connect is not available on this device.</string>
     <string name="action_done">Done</string>

@@ -127,6 +127,16 @@ struct WorkoutSummaryView: View {
                 action: "Try Again",
                 onAction: actions.retrySync
             )
+        case .deletefailed:
+            // Try Again writes the walk back in full, so it can then be deleted.
+            NoticeRow(
+                title: "Couldn’t Delete from Apple Health",
+                message: "The walk is kept. Try again to save it in full, then delete it.",
+                systemImage: "exclamationmark.triangle.fill",
+                tint: .red,
+                action: "Try Again",
+                onAction: actions.retrySync
+            )
         case .notsaved:
             Label("Kept on this iPhone only.", systemImage: "iphone")
                 .foregroundStyle(.secondary)

@@ -26,8 +26,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -69,6 +71,8 @@ import com.github.nols1000.hashiru.resources.summary_set_weight
 import com.github.nols1000.hashiru.resources.summary_title
 import com.github.nols1000.hashiru.resources.summary_total_kcal
 import com.github.nols1000.hashiru.resources.sync_busy
+import com.github.nols1000.hashiru.resources.sync_delete_failed
+import com.github.nols1000.hashiru.resources.sync_delete_failed_body
 import com.github.nols1000.hashiru.resources.sync_failed
 import com.github.nols1000.hashiru.resources.sync_failed_details
 import com.github.nols1000.hashiru.resources.sync_not_saved
@@ -96,6 +100,15 @@ internal fun WorkoutSummarySheet(summary: WorkoutSummaryUi, health: HealthUi, ac
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     fun close(then: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion { then() }
+    }
+    // A delete that succeeds takes the summary away; one the store refuses keeps it with a new sync state, so the
+    // hidden sheet comes back to say so.
+    var deletingFrom by remember { mutableStateOf<SyncUi?>(null) }
+    LaunchedEffect(summary.sync) {
+        if (deletingFrom != null && summary.sync != deletingFrom) {
+            deletingFrom = null
+            sheetState.show()
+        }
     }
 
     ModalBottomSheet(onDismissRequest = actions.dismissSummary, sheetState = sheetState) {
@@ -194,6 +207,7 @@ internal fun WorkoutSummarySheet(summary: WorkoutSummaryUi, health: HealthUi, ac
                 TextButton(
                     onClick = {
                         confirmDelete = false
+                        deletingFrom = summary.sync
                         close(actions.deleteSummary)
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -231,6 +245,14 @@ private fun SyncStatus(summary: WorkoutSummaryUi, actions: TreadmillActions) {
                 title = stringResource(Res.string.sync_failed),
                 // The store's own message is for support, not the headline.
                 body = summary.syncMessage?.takeIf { it.isNotBlank() }?.let { stringResource(Res.string.sync_failed_details, it) },
+                critical = true,
+                action = stringResource(Res.string.action_try_again),
+                onAction = actions.retrySync,
+            )
+            SyncUi.DeleteFailed -> NoticeRow(
+                icon = Res.drawable.ic_error,
+                title = stringResource(Res.string.sync_delete_failed),
+                body = stringResource(Res.string.sync_delete_failed_body),
                 critical = true,
                 action = stringResource(Res.string.action_try_again),
                 onAction = actions.retrySync,
