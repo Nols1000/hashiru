@@ -6,8 +6,10 @@ import com.github.nols1000.hashiru.iosinterop.hashiruDataTaskWithRequest
 import com.github.nols1000.hashiru.iosinterop.hashiruSetHTTPHeaderField
 import com.github.nols1000.hashiru.iosinterop.hashiruSetHTTPMethod
 import com.github.nols1000.hashiru.share.port.RelayEvent
+import com.github.nols1000.hashiru.share.port.RelayOutcome
 import com.github.nols1000.hashiru.share.port.RelayRequest
 import com.github.nols1000.hashiru.share.port.ShareRelayPort
+import com.github.nols1000.hashiru.share.port.relayOutcome
 import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.toNSData
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -139,31 +141,27 @@ class IosShareRelayAdapter(baseUrl: String) : ShareRelayPort {
     private fun completeRequest(request: RelayRequest, response: NSURLResponse?, error: NSError?, data: ByteArray) {
         inFlight = false
         val http = response as? NSHTTPURLResponse
-        if (error != null || http == null) {
-            if (request is RelayRequest.Close) {
-                drain()
-            } else {
-                pending.add(0, request)
-                signalUnreachable()
-                scheduleRetry()
-            }
+        val outcome = if (error == null && http != null) relayOutcome(request, http.statusCode.toInt()) else RelayOutcome.Retry
+        // A relay that is restarting or overloaded is as far away as one behind a dead network.
+        if (outcome == RelayOutcome.Retry) {
+            onTransportFailure(request)
             return
         }
         signalReachable()
-        when (request) {
-            is RelayRequest.Open -> {
-                if (http.statusCode.toInt() in 200..299) _events.tryEmit(RelayEvent.Opened(request.shareId))
-                else _events.tryEmit(RelayEvent.Refused(request.shareId))
-            }
-            is RelayRequest.Publish -> when (http.statusCode.toInt()) {
-                in 200..299 -> {
-                    val watchers = data.decodeToString().trim().toIntOrNull() ?: 0
-                    _events.tryEmit(RelayEvent.Acked(request.shareId, request.seq, watchers))
+        if (request !is RelayRequest.Close) {
+            when (outcome) {
+                RelayOutcome.Done -> when (request) {
+                    is RelayRequest.Open -> _events.tryEmit(RelayEvent.Opened(request.shareId))
+                    is RelayRequest.Publish -> {
+                        val watchers = data.decodeToString().trim().toIntOrNull() ?: 0
+                        _events.tryEmit(RelayEvent.Acked(request.shareId, request.seq, watchers))
+                    }
+                    is RelayRequest.Close, is RelayRequest.AwaitViewers -> Unit
                 }
-                401, 403, 404 -> _events.tryEmit(RelayEvent.Gone(request.shareId))
-                else -> _events.tryEmit(RelayEvent.Refused(request.shareId))
+                RelayOutcome.Gone -> _events.tryEmit(RelayEvent.Gone(request.shareId))
+                RelayOutcome.Refused -> _events.tryEmit(RelayEvent.Refused(request.shareId))
+                RelayOutcome.Retry -> Unit
             }
-            is RelayRequest.Close, is RelayRequest.AwaitViewers -> Unit
         }
         drain()
     }
@@ -175,9 +173,9 @@ class IosShareRelayAdapter(baseUrl: String) : ShareRelayPort {
             return
         }
         val http = response as? NSHTTPURLResponse
-        if (error == null && http != null) {
-            val status = http.statusCode.toInt()
-            if (status in 200..299) {
+        // Whatever else the relay answers, the poll stands and asks again: a viewer may yet come.
+        when (if (error == null && http != null) relayOutcome(poll.request, http.statusCode.toInt()) else RelayOutcome.Retry) {
+            RelayOutcome.Done -> {
                 signalReachable()
                 val count = data.decodeToString().trim().toIntOrNull() ?: 0
                 if (count > 0) {
@@ -187,13 +185,15 @@ class IosShareRelayAdapter(baseUrl: String) : ShareRelayPort {
                     drain()
                     return
                 }
-            } else if (status == 401 || status == 403 || status == 404) {
+            }
+            RelayOutcome.Gone -> {
                 signalReachable()
                 polls.remove(poll.request.shareId)
                 _events.tryEmit(RelayEvent.Gone(poll.request.shareId))
                 drain()
                 return
             }
+            RelayOutcome.Retry, RelayOutcome.Refused -> Unit
         }
         schedulePoll(poll)
         drain()

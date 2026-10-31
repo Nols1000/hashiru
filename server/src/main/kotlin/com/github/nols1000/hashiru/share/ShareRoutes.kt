@@ -37,6 +37,8 @@ private val shareId = Regex("[A-Za-z0-9_-]{22}")
  * GET    /api/shares/{id}/challenge      answers a nonce
  * GET    /api/shares/{id}/stream?nonce=…&proof=…   proof: HMAC-SHA-512(presence key, nonce)
  * ```
+ *
+ * A relay with no room for another share answers 503, as it does while it restarts: the phone tries again later.
  */
 fun Route.shareRoutes(store: ShareStore) {
     route("/api/shares/{id}") {

@@ -44,7 +44,10 @@ sealed interface RelayEvent {
     /** Someone opened the link while the engine was not publishing, in answer to [RelayRequest.AwaitViewers]. */
     data class Watchers(val shareId: String, val count: Int) : RelayEvent
 
-    /** Requests are failing for want of a network; [Reachable] follows when it is back. */
+    /**
+     * Requests are failing for want of a network, or while the relay is briefly unavailable; [Reachable] follows
+     * when it is back.
+     */
     data object Unreachable : RelayEvent
     data object Reachable : RelayEvent
 
