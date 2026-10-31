@@ -19,7 +19,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
-import com.github.nols1000.hashiru.treadmill.codec.toHex
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillError
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillException
@@ -131,7 +130,6 @@ class AndroidTransportAdapter(context: Context) : TreadmillTransportPort {
 
         val written = CompletableDeferred<Unit>()
         pendingWrite = written
-        Log.d(TAG, "TX ${bytes.toHex()}")
         val accepted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             gatt.writeCharacteristic(characteristic, bytes, writeType) == BluetoothStatusCodes.SUCCESS
         } else {
@@ -251,7 +249,6 @@ class AndroidTransportAdapter(context: Context) : TreadmillTransportPort {
 
     private fun onNotification(characteristic: BluetoothGattCharacteristic, value: ByteArray) {
         if (characteristic.uuid != NOTIFY_UUID) return
-        Log.d(TAG, "RX ${value.toHex()}")
         _incomingBytes.tryEmit(value.copyOf())
     }
 

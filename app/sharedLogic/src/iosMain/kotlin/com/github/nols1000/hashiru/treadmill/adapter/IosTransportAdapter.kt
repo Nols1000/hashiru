@@ -2,7 +2,6 @@ package com.github.nols1000.hashiru.treadmill.adapter
 
 import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.toNSData
-import com.github.nols1000.hashiru.treadmill.codec.toHex
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillError
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillException
@@ -136,7 +135,6 @@ class IosTransportAdapter : TreadmillTransportPort {
     override suspend fun send(bytes: ByteArray) {
         val peripheral = peripheral ?: error("Not connected")
         val characteristic = writeCharacteristic ?: error("Not connected")
-        println("$TAG: TX ${bytes.toHex()}")
         if (characteristic.properties and CBCharacteristicPropertyWriteWithoutResponse != 0uL) {
             // CoreBluetooth silently drops writes without response once its queue is full.
             if (!peripheral.canSendWriteWithoutResponse) {
@@ -364,7 +362,6 @@ class IosTransportAdapter : TreadmillTransportPort {
         override fun peripheral(peripheral: CBPeripheral, didUpdateValueForCharacteristic: CBCharacteristic, error: NSError?) {
             if (error != null || didUpdateValueForCharacteristic.UUID != NOTIFY_UUID) return
             val bytes = didUpdateValueForCharacteristic.value?.toByteArray() ?: return
-            println("$TAG: RX ${bytes.toHex()}")
             _incomingBytes.tryEmit(bytes)
         }
 

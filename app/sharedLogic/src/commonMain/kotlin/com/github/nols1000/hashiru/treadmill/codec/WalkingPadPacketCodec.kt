@@ -111,5 +111,3 @@ object WalkingPadPacketCodec {
         this[index + 2] = value.toByte()
     }
 }
-
-fun ByteArray.toHex(): String = joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }
