@@ -37,7 +37,7 @@ class ShareStore(
         val maxShares: Int = 10_000,
         val maxSnapshotBytes: Int = 2 * 1024 * 1024,
         val maxFrameBytes: Int = 64 * 1024,
-        /** Frames held after the snapshot; the phone sends a new snapshot long before. */
+        /** Frames held after the snapshot; the phone sends a fresh snapshot every few hundred, well before this. */
         val maxFramesAfterSnapshot: Int = 2_000,
         val maxWatchers: Int = 2_000,
         /** Signals a viewer may lag behind before its stream closes, so a slow viewer never holds up the others. */

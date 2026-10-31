@@ -47,7 +47,8 @@ import kotlin.time.ExperimentalTime
  * To spare the battery it publishes only while someone has the link open: every [WATCHED_MS] outdoors, every
  * [WATCHED_INDOOR_MS] indoors, and at once when the workout pauses, resumes, ends or strays from its course. While no
  * one watches it sends nothing; the relay keeps the last snapshot and the adapter reports when a viewer arrives.
- * Each update carries the route since the last one the relay confirmed, so a lost update does no harm.
+ * Each update carries the route since the last one the relay confirmed, so a lost update does no harm. Every so
+ * many updates, or when the route to catch up on grows too long for one, a snapshot goes out in its place.
  *
  * The share survives process death. The frame counter, which the relay orders frames by, is reserved on disk
  * before use; as SFrame takes it for the nonce, each run of the process also seals under a key id of its own, so
@@ -281,17 +282,20 @@ class LiveShareEngine internal constructor(
                 ShareNavigation(it.progressMeters, it.remainingMeters, it.offCourseMeters, it.onCourse, it.finished, it.joined)
             },
         )
-        val message = if (snapshot) {
-            ShareMessage.Snapshot(source.kind, sharedCourse(active, source.course), state, route)
+        // The relay holds only so many updates after a snapshot, each of limited size; a fresh snapshot starts over.
+        val update = if (snapshot || active.updatesSinceSnapshot >= SNAPSHOT_EVERY_UPDATES) {
+            null
         } else {
-            ShareMessage.Update(state, route.drop(active.ackedRoute))
+            ShareMessageCodec.encode(ShareMessage.Update(state, route.drop(active.ackedRoute))).takeIf { it.size <= MAX_UPDATE_BYTES }
         }
+        val plaintext = update ?: ShareMessageCodec.encode(ShareMessage.Snapshot(source.kind, sharedCourse(active, source.course), state, route))
         val seq = nextSeq(active)
         val metadata = metadata(active.id)
-        val frame = active.sealer.seal(seq, metadata, ShareMessageCodec.encode(message))
+        val frame = active.sealer.seal(seq, metadata, plaintext)
         val signature = cipher.sign(active.alias, metadata + frame) ?: return
         active.pending[seq] = route.size
-        relay.handle(RelayRequest.Publish(active.id, active.writeToken, seq, frame + signature, snapshot))
+        active.updatesSinceSnapshot = if (update == null) 0 else active.updatesSinceSnapshot + 1
+        relay.handle(RelayRequest.Publish(active.id, active.writeToken, seq, frame + signature, snapshot = update == null))
     }
 
     /** Sends the last snapshot and closes the share, keeping it for viewers until the relay forgets it. */
@@ -408,6 +412,9 @@ class LiveShareEngine internal constructor(
 
         /** Route points each unconfirmed frame carried, by counter. */
         val pending = mutableMapOf<Long, Int>()
+
+        /** Updates sent since the last snapshot, which the relay keeps along with it. */
+        var updatesSinceSnapshot = 0
         var anchorMeters = 0
         var lastMovedMs: Long? = null
         var moment: Pair<SharePhase, Boolean?>? = null
@@ -426,6 +433,19 @@ class LiveShareEngine internal constructor(
         private const val SEQ_RESERVATION = 64
         private const val COURSE_TOLERANCE_M = 5.0
         private const val COURSE_MAX_POINTS = 1_000
+
+        /**
+         * Updates between snapshots: an hour of them outdoors, two indoors. The relay holds 2,000 after a snapshot
+         * and refuses more; counting what was sent rather than what arrived, this leaves room for a few lost snapshots.
+         */
+        internal const val SNAPSHOT_EVERY_UPDATES = 240
+
+        /**
+         * The largest update plaintext, about two hours of route at one point a second. The relay takes 64 KiB a
+         * frame, which also holds the SFrame header (up to 17 bytes), tag (16) and signature (64); a longer backlog
+         * goes out as a snapshot.
+         */
+        internal const val MAX_UPDATE_BYTES = 48 * 1024
         private const val CHECKPOINT_VERSION = "1"
         private const val KEY_ACTIVE = "share.active"
         private const val KEY_HEART_RATE = "share.includeHeartRate"

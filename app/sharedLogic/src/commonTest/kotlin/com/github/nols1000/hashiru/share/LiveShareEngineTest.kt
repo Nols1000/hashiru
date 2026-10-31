@@ -132,6 +132,57 @@ class LiveShareEngineTest {
     }
 
     @Test
+    fun aLongWatchedWalkGetsFreshSnapshotsBeforeTheRelayFillsUp() = runTest {
+        workouts.value = walking(2)
+        val engine = engine()
+        relay.watchers = 1
+        engine.share()
+        runCurrent()
+
+        // Past the 2,000 updates the relay holds after a snapshot.
+        repeat(2_100) { advanceTimeBy(LiveShareEngine.WATCHED_MS) }
+        runCurrent()
+
+        var run = 0
+        var longest = 0
+        for (publish in publishes) {
+            run = if (publish.snapshot) 0 else run + 1
+            longest = maxOf(longest, run)
+        }
+        assertEquals(LiveShareEngine.SNAPSHOT_EVERY_UPDATES, longest)
+        val periodic = publishes.drop(1).first { it.snapshot }
+        assertEquals(2, assertIs<ShareMessage.Snapshot>(periodic.message()).route.size)
+        // The relay holds the last snapshot and what followed it, never near its limit.
+        assertTrue(relay.frames.getValue(publishes.first().shareId).size <= LiveShareEngine.SNAPSHOT_EVERY_UPDATES + 1)
+        assertIs<ShareMessage.Update>(publishes.last().message())
+    }
+
+    @Test
+    fun aLongBacklogAfterBeingOfflineGoesOutAsASnapshot() = runTest {
+        workouts.value = walking(2)
+        val engine = engine()
+        relay.watchers = 1
+        engine.share()
+        runCurrent()
+
+        relay.reachable = false
+        workouts.value = walking(20_000)
+        advanceTimeBy(LiveShareEngine.WATCHED_MS + 1)
+        relay.reachable = true
+        runCurrent()
+
+        val caughtUp = publishes.last()
+        assertTrue(caughtUp.snapshot)
+        assertEquals(20_000, assertIs<ShareMessage.Snapshot>(caughtUp.message()).route.size)
+        assertTrue(publishes.filterNot { it.snapshot }.all { it.frame.size <= 64 * 1024 })
+
+        // Once the relay confirmed it, updates carry new positions only again.
+        workouts.value = walking(20_003)
+        advanceTimeBy(LiveShareEngine.WATCHED_MS)
+        assertEquals(3, assertIs<ShareMessage.Update>(publishes.last().message()).route.size)
+    }
+
+    @Test
     fun pausingReachesViewersAtOnce() = runTest {
         workouts.value = walking(2)
         val engine = engine()
