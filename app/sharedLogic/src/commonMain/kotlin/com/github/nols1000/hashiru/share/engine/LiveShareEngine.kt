@@ -21,6 +21,7 @@ import com.github.nols1000.hashiru.share.port.ShareCipherPort
 import com.github.nols1000.hashiru.share.port.ShareRelayPort
 import com.github.nols1000.hashiru.workout.domain.Location
 import com.github.nols1000.hashiru.workout.domain.PadCounters
+import com.github.nols1000.hashiru.workout.domain.WorkoutKind
 import com.github.nols1000.hashiru.workout.engine.WorkoutPhase
 import com.github.nols1000.hashiru.workout.engine.WorkoutRecorder
 import com.github.nols1000.hashiru.workout.engine.WorkoutStatus
@@ -290,7 +291,9 @@ class LiveShareEngine internal constructor(
             },
         )
         // The relay holds only so many updates after a snapshot, each of limited size; a fresh snapshot starts over.
-        val update = if (snapshot || active.updatesSinceSnapshot >= SNAPSHOT_EVERY_UPDATES) {
+        // A share opened on the ready screen snapshotted the idle workout, so the one that starts needs its own.
+        val described = source.kind to source.course?.id
+        val update = if (snapshot || active.snapshotOf != described || active.updatesSinceSnapshot >= SNAPSHOT_EVERY_UPDATES) {
             null
         } else {
             ShareMessageCodec.encode(ShareMessage.Update(state, route.drop(active.ackedRoute))).takeIf { it.size <= MAX_UPDATE_BYTES }
@@ -302,6 +305,7 @@ class LiveShareEngine internal constructor(
         val signature = cipher.sign(active.alias, metadata + frame) ?: return
         active.pending[seq] = route.size
         active.updatesSinceSnapshot = if (update == null) 0 else active.updatesSinceSnapshot + 1
+        if (update == null) active.snapshotOf = described
         relay.handle(RelayRequest.Publish(active.id, active.writeToken, seq, frame + signature, snapshot = update == null))
     }
 
@@ -425,6 +429,9 @@ class LiveShareEngine internal constructor(
 
         /** Updates sent since the last snapshot, which the relay keeps along with it. */
         var updatesSinceSnapshot = 0
+
+        /** The kind and course id of the last snapshot; updates carry neither, so a change needs a new snapshot. */
+        var snapshotOf: Pair<WorkoutKind, String?>? = null
         var anchorMeters = 0
         var lastMovedMs: Long? = null
         var moment: Pair<SharePhase, Boolean?>? = null

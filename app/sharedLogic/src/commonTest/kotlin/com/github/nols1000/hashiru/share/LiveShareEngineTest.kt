@@ -327,6 +327,24 @@ class LiveShareEngineTest {
     }
 
     @Test
+    fun viewersOfAShareStartedBeforeTheWorkoutLearnWhatItIs() = runTest {
+        val engine = engine()
+        relay.watchers = 1
+        engine.share()
+        runCurrent()
+        assertEquals(WorkoutKind.IndoorWalk, assertIs<ShareMessage.Snapshot>(publishes.last().message()).kind)
+
+        workouts.value = walking(1, kind = WorkoutKind.OutdoorRun)
+        runCurrent()
+        assertEquals(WorkoutKind.OutdoorRun, assertIs<ShareMessage.Snapshot>(publishes.last().message()).kind)
+
+        // The ticker began while the workout was idle, at the indoor pace.
+        workouts.value = walking(3, kind = WorkoutKind.OutdoorRun)
+        advanceTimeBy(LiveShareEngine.WATCHED_INDOOR_MS + 1)
+        assertIs<ShareMessage.Update>(publishes.last().message())
+    }
+
+    @Test
     fun aShareComesBackAfterProcessDeathWithoutRepeatingCounters() = runTest {
         workouts.value = walking(2)
         val first = engine()
