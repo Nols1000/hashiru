@@ -495,7 +495,7 @@ func previewHistory(walks: [PastWalk] = previewWalks, connected: Bool = true, lo
     ContentView(app: IosTreadmillSessionKt.createIosApp(
         simulated: true,
         shareCipher: ShareCipher(),
-        relayUrl: ShareConfig.relayUrl,
+        relayUrl: nil,
         viewerUrl: ShareConfig.viewerUrl
     ))
 }

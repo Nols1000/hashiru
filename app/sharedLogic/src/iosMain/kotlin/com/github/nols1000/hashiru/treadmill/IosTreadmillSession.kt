@@ -75,12 +75,12 @@ private fun weekDayStarts(nowMs: Long): List<Long> {
  * `application(_:didFinishLaunchingWithOptions:)` so CoreBluetooth state restoration reaches the transport,
  * and a walk cut off when iOS ended the app is restored or finished. It also activates the WatchConnectivity
  * session, which must happen before launch finishes. HealthKit is used in the simulator too; the watch is
- * simulated there, and so are workouts the phone tracks.
+ * simulated there, and so are workouts the phone tracks. Without a [relayUrl], live shares go to a simulated relay.
  */
 fun createIosApp(
     simulated: Boolean,
     shareCipher: ShareCipherPort,
-    relayUrl: String,
+    relayUrl: String?,
     viewerUrl: String,
 ): IosApp {
     val session = createIosTreadmillSession(simulated)
@@ -90,7 +90,7 @@ fun createIosApp(
     val workouts = WorkoutRecorder(session, health, storage, courses)
     val relay = WatchRelay(session, workouts, if (simulated) MockWatchCompanionAdapter() else IosWatchConnectivityAdapter())
     relay.start()
-    val shareRelay = if (simulated) MockShareRelayAdapter() else IosShareRelayAdapter(relayUrl)
+    val shareRelay = if (relayUrl == null) MockShareRelayAdapter() else IosShareRelayAdapter(relayUrl)
     val share = LiveShareEngine(workouts, shareRelay, shareCipher, IosBattery(), storage, viewerUrl)
     share.start()
     return IosApp(session, workouts, relay, share, health, storage, courses)

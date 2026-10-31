@@ -2,8 +2,11 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web, Server.
 
 * [/app/iosApp](./app/iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project. Its workout
-  controls can publish an end-to-end encrypted live share for the web viewer. Debug builds accept `HASHIRU_RELAY` and
-  `HASHIRU_VIEWER` process environment overrides; release builds use `https://hashiru.tw-esport.de`.
+  controls can publish an end-to-end encrypted live share for the web viewer. Release builds use
+  `https://hashiru.tw-esport.de`. Debug builds accept `HASHIRU_RELAY` and `HASHIRU_VIEWER` process environment
+  overrides; in the simulator, live shares go to a simulated relay unless `HASHIRU_RELAY` is set. To run against a
+  local relay, start it with `./gradlew :server:run`, then set `HASHIRU_RELAY=http://localhost:8080/api` and
+  `HASHIRU_VIEWER=http://localhost:5173` in the scheme's environment.
 
 * [/app/iosApp/watchApp](./app/iosApp/watchApp) is the watchOS companion, embedded in the iOS app. It runs a
   workout session for heart rate during a walk and controls the treadmill through the phone. It has its own

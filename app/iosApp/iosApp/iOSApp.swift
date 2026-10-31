@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         app = IosTreadmillSessionKt.createIosApp(
             simulated: true,
             shareCipher: ShareCipher(),
-            relayUrl: ShareConfig.relayUrl,
+            // The relay is simulated too, unless HASHIRU_RELAY points at a real one.
+            relayUrl: ShareConfig.relayOverride,
             viewerUrl: ShareConfig.viewerUrl
         )
         #else
