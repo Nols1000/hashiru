@@ -16,9 +16,36 @@ enum class HealthPrompt { NotAsked, Accepted, Declined }
  * need syncing, the last summary, and the user's profile. There is no history; the health store has that.
  */
 class WorkoutStore(private val kv: KeyValueStorePort) {
+    /**
+     * The walk in progress. Its route only grows, so it is kept apart from the rest: each checkpoint appends the
+     * points since the last one as a chunk of its own, and the index says whose route the chunks hold and how many
+     * points they hold in all. A checkpoint from before this kept the route inline; it still restores, and the next
+     * checkpoint moves the route into chunks.
+     */
     var inProgress: WorkoutState.InProgress?
-        get() = kv.getString(KEY_IN_PROGRESS)?.let(WorkoutCodec::decodeInProgress)
-        set(value) = kv.putString(KEY_IN_PROGRESS, value?.let(WorkoutCodec::encodeInProgress))
+        get() {
+            val state = kv.getString(KEY_IN_PROGRESS)?.let(WorkoutCodec::decodeInProgress) ?: return null
+            val index = routeIndex()?.takeIf { it.id == state.id } ?: return state
+            return state.copy(route = (0 until index.chunks).flatMap { routeChunk(it) })
+        }
+        set(value) {
+            val index = routeIndex()
+            if (value == null) {
+                clearRoute(index)
+                kv.putString(KEY_IN_PROGRESS, null)
+                return
+            }
+            // Chunks of another walk, or a route that did not grow from them, are replaced.
+            val kept = index?.takeIf { it.id == value.id && it.points <= value.route.size }
+            if (kept == null) clearRoute(index)
+            val chunks = kept?.chunks ?: 0
+            val points = kept?.points ?: 0
+            if (value.route.size > points) {
+                kv.putString(chunkKey(chunks), WorkoutCodec.encodeRoute(value.route.subList(points, value.route.size)))
+                kv.putString(KEY_ROUTE_INDEX, "${value.id},${chunks + 1},${value.route.size}")
+            }
+            kv.putString(KEY_IN_PROGRESS, WorkoutCodec.encodeInProgress(value.copy(route = emptyList())))
+        }
 
     var lastFinalCounters: PadCounters?
         get() = kv.getString(KEY_LAST_FINAL)?.let(WorkoutCodec::decodeCounters)
@@ -74,10 +101,28 @@ class WorkoutStore(private val kv: KeyValueStorePort) {
         if (lastSummaryId == id) lastSummaryId = null
     }
 
+    private class RouteIndex(val id: String, val chunks: Int, val points: Int)
+
+    private fun routeIndex(): RouteIndex? {
+        val v = kv.getString(KEY_ROUTE_INDEX)?.split(',')?.takeIf { it.size == 3 } ?: return null
+        return RouteIndex(v[0], v[1].toIntOrNull() ?: return null, v[2].toIntOrNull() ?: return null)
+    }
+
+    private fun routeChunk(n: Int) = kv.getString(chunkKey(n))?.let { runCatching { WorkoutCodec.decodeRoute(it) }.getOrNull() }.orEmpty()
+
+    private fun clearRoute(index: RouteIndex?) {
+        if (index == null) return
+        repeat(index.chunks) { kv.putString(chunkKey(it), null) }
+        kv.putString(KEY_ROUTE_INDEX, null)
+    }
+
+    private fun chunkKey(n: Int) = "$KEY_ROUTE_INDEX.$n"
+
     companion object {
         const val DEFAULT_WEEKLY_GOAL_METERS = 10_000
 
         private const val KEY_IN_PROGRESS = "workout.inProgress"
+        private const val KEY_ROUTE_INDEX = "workout.inProgress.route"
         private const val KEY_LAST_FINAL = "workout.lastFinalCounters"
         private const val KEY_SUMMARY = "workout.lastSummaryId"
         private const val KEY_RECORDS = "workout.records"

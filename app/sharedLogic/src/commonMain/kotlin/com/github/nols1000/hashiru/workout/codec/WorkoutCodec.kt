@@ -168,11 +168,11 @@ object WorkoutCodec {
     }
 
     /** Five values per point: time, latitude, longitude, altitude (empty when unknown), accuracy. */
-    private fun encodeRoute(route: List<RoutePoint>) = route.joinToString(";") {
+    fun encodeRoute(route: List<RoutePoint>) = route.joinToString(";") {
         "${it.atMs},${it.latitude},${it.longitude},${it.altitudeM ?: ""},${it.accuracyM}"
     }
 
-    private fun decodeRoute(text: String): List<RoutePoint> = items(text).map {
+    fun decodeRoute(text: String): List<RoutePoint> = items(text).map {
         val v = it.split(',')
         RoutePoint(v[0].toLong(), v[1].toDouble(), v[2].toDouble(), v[3].toDoubleOrNull(), v[4].toDouble())
     }
