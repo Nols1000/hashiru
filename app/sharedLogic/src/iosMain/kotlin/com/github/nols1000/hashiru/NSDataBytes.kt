@@ -9,8 +9,10 @@ import platform.Foundation.create
 import platform.posix.memcpy
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal fun ByteArray.toNSData(): NSData = usePinned {
-    NSData.create(bytes = it.addressOf(0), length = size.toULong())
+internal fun ByteArray.toNSData(): NSData {
+    // An empty array has no first element to point at.
+    if (isEmpty()) return NSData()
+    return usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
 }
 
 @OptIn(ExperimentalForeignApi::class)
