@@ -12,4 +12,4 @@ images:
     digest: sha256:5beeafb4b8987d48a77d1380e495eee43a78ef81bff23aa33b4db23dd20a7e6c
   - name: hashiru-web
     newName: ghcr.io/nols1000/hashiru-web
-    digest: sha256:b45d8c41d80e03192a5dc96c6cf485ffc973961a25f7ea259bc4afd6fdeec317
+    digest: sha256:1a665f14b7a1e7cd0ed14c8d058be5204a5578f251e435ac6173d0c824757393
