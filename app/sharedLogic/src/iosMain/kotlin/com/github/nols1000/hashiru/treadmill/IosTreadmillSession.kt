@@ -7,6 +7,11 @@ import com.github.nols1000.hashiru.course.adapter.FileCourseLibrary
 import com.github.nols1000.hashiru.course.domain.ImportResult
 import com.github.nols1000.hashiru.course.port.CourseLibraryPort
 import com.github.nols1000.hashiru.course.presentation.CourseLibraryViewModel
+import com.github.nols1000.hashiru.share.adapter.IosBattery
+import com.github.nols1000.hashiru.share.adapter.IosShareRelayAdapter
+import com.github.nols1000.hashiru.share.adapter.MockShareRelayAdapter
+import com.github.nols1000.hashiru.share.engine.LiveShareEngine
+import com.github.nols1000.hashiru.share.port.ShareCipherPort
 import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.treadmill.adapter.IosAccessoryAssociationAdapter
 import com.github.nols1000.hashiru.treadmill.adapter.IosTransportAdapter
@@ -38,6 +43,7 @@ class IosApp(
     val session: TreadmillSession,
     val workouts: WorkoutRecorder,
     val relay: WatchRelay,
+    val share: LiveShareEngine,
     private val history: WorkoutHistoryPort,
     private val storage: KeyValueStorePort,
     private val courses: CourseLibraryPort,
@@ -71,7 +77,12 @@ private fun weekDayStarts(nowMs: Long): List<Long> {
  * session, which must happen before launch finishes. HealthKit is used in the simulator too; the watch is
  * simulated there, and so are workouts the phone tracks.
  */
-fun createIosApp(simulated: Boolean): IosApp {
+fun createIosApp(
+    simulated: Boolean,
+    shareCipher: ShareCipherPort,
+    relayUrl: String,
+    viewerUrl: String,
+): IosApp {
     val session = createIosTreadmillSession(simulated)
     val health = IosHealthKitAdapter(simulated)
     val storage = UserDefaultsStore()
@@ -79,7 +90,10 @@ fun createIosApp(simulated: Boolean): IosApp {
     val workouts = WorkoutRecorder(session, health, storage, courses)
     val relay = WatchRelay(session, workouts, if (simulated) MockWatchCompanionAdapter() else IosWatchConnectivityAdapter())
     relay.start()
-    return IosApp(session, workouts, relay, health, storage, courses)
+    val shareRelay = if (simulated) MockShareRelayAdapter() else IosShareRelayAdapter(relayUrl)
+    val share = LiveShareEngine(workouts, shareRelay, shareCipher, IosBattery(), storage, viewerUrl)
+    share.start()
+    return IosApp(session, workouts, relay, share, health, storage, courses)
 }
 
 /**

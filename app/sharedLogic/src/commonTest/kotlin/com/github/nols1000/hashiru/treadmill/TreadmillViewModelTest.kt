@@ -3,6 +3,9 @@ package com.github.nols1000.hashiru.treadmill
 import androidx.lifecycle.ViewModelStore
 import com.github.nols1000.hashiru.companion.adapter.MockWatchCompanionAdapter
 import com.github.nols1000.hashiru.companion.engine.WatchRelay
+import com.github.nols1000.hashiru.share.FakeShareCipher
+import com.github.nols1000.hashiru.share.adapter.MockShareRelayAdapter
+import com.github.nols1000.hashiru.share.engine.LiveShareEngine
 import com.github.nols1000.hashiru.treadmill.adapter.MockAssociationAdapter
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
 import com.github.nols1000.hashiru.treadmill.adapter.MockTransportAdapter
@@ -10,10 +13,12 @@ import com.github.nols1000.hashiru.treadmill.domain.TreadmillCommand
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillError
 import com.github.nols1000.hashiru.treadmill.engine.TreadmillSession
 import com.github.nols1000.hashiru.treadmill.presentation.SyncUi
+import com.github.nols1000.hashiru.treadmill.presentation.ShareUiPhase
 import com.github.nols1000.hashiru.treadmill.presentation.TreadmillViewModel
 import com.github.nols1000.hashiru.workout.adapter.InMemoryKeyValueStore
 import com.github.nols1000.hashiru.workout.adapter.MockHealthSyncAdapter
 import com.github.nols1000.hashiru.workout.domain.PauseReason
+import com.github.nols1000.hashiru.workout.domain.WorkoutKind
 import com.github.nols1000.hashiru.workout.engine.WorkoutPhase
 import com.github.nols1000.hashiru.workout.engine.WorkoutRecorder
 import com.github.nols1000.hashiru.workout.store.WorkoutStore
@@ -60,6 +65,22 @@ class TreadmillViewModelTest {
     private fun TestScope.relayFor(session: TreadmillSession, workouts: WorkoutRecorder) =
         WatchRelay(session, workouts, MockWatchCompanionAdapter(simulateHeartRate = false), backgroundScope)
 
+    private fun TestScope.shareFor(workouts: WorkoutRecorder) =
+        LiveShareEngine(
+            workouts.status,
+            MockShareRelayAdapter(),
+            FakeShareCipher(),
+            { 80 },
+            InMemoryKeyValueStore(),
+            "https://share.test",
+            backgroundScope,
+            { testScheduler.currentTime },
+        ).also {
+            it.start()
+            runCurrent()
+        }
+
+
     private fun TestScope.viewModelFor(
         transport: MockTransportAdapter,
         associations: MockAssociationAdapter = MockAssociationAdapter(),
@@ -68,7 +89,8 @@ class TreadmillViewModelTest {
         val scope = CoroutineScope(backgroundScope.coroutineContext + SupervisorJob(backgroundScope.coroutineContext[Job]))
         val session = TreadmillSession(transport, associations, scope, testScheduler.timeSource)
         val workouts = recorderFor(session)
-        return TreadmillViewModel(session, workouts, relayFor(session, workouts)).also { store.put("treadmill", it) }
+        val relay = relayFor(session, workouts)
+        return TreadmillViewModel(session, workouts, relay, shareFor(workouts)).also { store.put("treadmill", it) }
     }
 
     @Test
@@ -228,7 +250,7 @@ class TreadmillViewModelTest {
         val session = TreadmillSession(transport, MockAssociationAdapter(), backgroundScope, testScheduler.timeSource)
         val workouts = recorderFor(session)
         val relay = relayFor(session, workouts)
-        val first = TreadmillViewModel(session, workouts, relay).also { store.put("first", it) }
+        val first = TreadmillViewModel(session, workouts, relay, shareFor(workouts)).also { store.put("first", it) }
         first.connect()
         advanceTimeBy(600)
         first.toggleBelt()
@@ -239,7 +261,7 @@ class TreadmillViewModelTest {
         advanceTimeBy(1_000)
         assertEquals(ConnectionState.Connected, transport.connectionState.value)
 
-        val second = TreadmillViewModel(session, workouts, relay).also { store.put("second", it) }
+        val second = TreadmillViewModel(session, workouts, relay, shareFor(workouts)).also { store.put("second", it) }
         runCurrent()
         with(second.uiState.value) {
             assertTrue(isConnected)
@@ -304,5 +326,25 @@ class TreadmillViewModelTest {
             assertTrue(now.paceSecondsPerKm!! in 1180..1260, "pace ${now.paceSecondsPerKm}")
             last = now
         }
+    }
+
+    @Test
+    fun shareStatusReachesTheUiState() = runTest(dispatcher) {
+        val viewModel = viewModelFor(MockTransportAdapter())
+        viewModel.startWorkout(WorkoutKind.IndoorWalk, null)
+        runCurrent()
+        assertEquals(WorkoutPhase.Active, viewModel.uiState.value.workout.phase)
+
+        viewModel.startShare(true)
+        runCurrent()
+        with(viewModel.uiState.value.share) {
+            assertEquals(ShareUiPhase.Live, phase)
+            assertTrue(link?.startsWith("https://share.test/#v1.") == true)
+            assertTrue(includeHeartRate)
+        }
+
+        viewModel.stopShare()
+        runCurrent()
+        assertFalse(viewModel.uiState.value.share.phase == ShareUiPhase.Live)
     }
 }

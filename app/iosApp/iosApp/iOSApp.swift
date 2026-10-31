@@ -11,9 +11,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // Created before launch finishes so CoreBluetooth state restoration can hand back the connection
         // when iOS relaunches the app in the background for the WalkingPad, and the walk with it.
         #if targetEnvironment(simulator)
-        app = IosTreadmillSessionKt.createIosApp(simulated: true)
+        app = IosTreadmillSessionKt.createIosApp(
+            simulated: true,
+            shareCipher: ShareCipher(),
+            relayUrl: ShareConfig.relayUrl,
+            viewerUrl: ShareConfig.viewerUrl
+        )
         #else
-        app = IosTreadmillSessionKt.createIosApp(simulated: false)
+        app = IosTreadmillSessionKt.createIosApp(
+            simulated: false,
+            shareCipher: ShareCipher(),
+            relayUrl: ShareConfig.relayUrl,
+            viewerUrl: ShareConfig.viewerUrl
+        )
         #endif
         return true
     }

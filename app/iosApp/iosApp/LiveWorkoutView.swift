@@ -459,6 +459,7 @@ private struct WorkoutControlsSheet: View {
                 SheetButton(title: "End Workout", systemImage: "xmark", tint: .red, action: session.ready ? onCancel : actions.endWorkout)
                     .disabled(locked)
                 SheetButton(title: "Connected Devices", systemImage: "antenna.radiowaves.left.and.right") { showingDevices = true }
+                ShareControls(state: state.share, actions: actions, locked: locked)
                 LockButton(locked: $locked)
         }
         .padding(.horizontal, 18)
@@ -495,6 +496,96 @@ private struct WorkoutControlsSheet: View {
     private var pauseButton: some View {
         SheetButton(title: "Pause", systemImage: "pause.fill", tint: .workoutClock, action: actions.pauseWorkout)
             .disabled(locked)
+    }
+}
+
+private struct ShareControls: View {
+    let state: ShareUi
+    let actions: TreadmillActions
+    let locked: Bool
+
+    @State private var showingShareOptions = false
+    @State private var includeHeartRate = false
+
+    var body: some View {
+        controls
+            .sheet(isPresented: $showingShareOptions) {
+                VStack(spacing: 20) {
+                    Toggle("Include Heart Rate", isOn: $includeHeartRate)
+                    Button("Share") {
+                        actions.startShare(includeHeartRate)
+                        showingShareOptions = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+                .disabled(locked)
+                .presentationDetents([.height(160)])
+            }
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        if state.phase == .off || state.phase == .failed {
+            VStack(spacing: 8) {
+                if state.phase == .failed {
+                    Text("Sharing Unavailable")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Sharing was refused by the server.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                SheetButton(title: "Share Workout", systemImage: "square.and.arrow.up") {
+                    includeHeartRate = state.heartRateByDefault
+                    showingShareOptions = true
+                }
+                .disabled(locked)
+            }
+        } else if state.phase == .live {
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.2")
+                    Text(state.watchers == 0
+                         ? String(localized: "No one watching yet")
+                         : String(format: String(localized: "%d watching"), Int(state.watchers)))
+                    Spacer(minLength: 0)
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                if state.offline {
+                    Text("Reconnecting…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                shareLink(state.link)
+                SheetButton(title: "Stop Sharing", systemImage: "stop.fill", tint: .red, action: actions.stopShare)
+                    .disabled(locked)
+            }
+        } else {
+            VStack(spacing: 10) {
+                Text("Sharing Ended")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                shareLink(state.link)
+                SheetButton(title: "Done", systemImage: "checkmark", action: actions.dismissShareEnded)
+                    .disabled(locked)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func shareLink(_ link: String?) -> some View {
+        if let link, let url = URL(string: link) {
+            ShareLink(item: url) {
+                Label("Share Link", systemImage: "square.and.arrow.up")
+                    .font(.headline)
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity, minHeight: 64)
+                    .background(.fill.tertiary, in: .capsule)
+            }
+            .buttonStyle(.plain)
+            .disabled(locked)
+        }
     }
 }
 

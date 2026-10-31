@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.nols1000.hashiru.companion.domain.CompanionState
 import com.github.nols1000.hashiru.companion.engine.WatchRelay
+import com.github.nols1000.hashiru.share.domain.LiveShareStatus
+import com.github.nols1000.hashiru.share.engine.LiveShareEngine
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
 import com.github.nols1000.hashiru.treadmill.domain.PairingCancelledException
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillCommand
@@ -40,6 +42,34 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+enum class ShareUiPhase { Off, Live, Ended, Failed }
+
+/** Live sharing on the workout screens, flattened from [LiveShareStatus] for Swift. */
+data class ShareUi(
+    val phase: ShareUiPhase = ShareUiPhase.Off,
+    /** Set while Live and Ended; includes the fragment, which holds the keys. */
+    val link: String? = null,
+    val watchers: Int = 0,
+    val offline: Boolean = false,
+    val includeHeartRate: Boolean = false,
+    /** The persisted default for the heart-rate switch in the share dialog. */
+    val heartRateByDefault: Boolean = false,
+)
+
+private fun LiveShareStatus.toUi(heartRateByDefault: Boolean): ShareUi = when (this) {
+    LiveShareStatus.Off -> ShareUi(heartRateByDefault = heartRateByDefault)
+    is LiveShareStatus.Live -> ShareUi(
+        phase = ShareUiPhase.Live,
+        link = link,
+        watchers = watchers,
+        offline = offline,
+        includeHeartRate = includeHeartRate,
+        heartRateByDefault = heartRateByDefault,
+    )
+    is LiveShareStatus.Ended -> ShareUi(phase = ShareUiPhase.Ended, link = link, heartRateByDefault = heartRateByDefault)
+    LiveShareStatus.Failed -> ShareUi(phase = ShareUiPhase.Failed, heartRateByDefault = heartRateByDefault)
+}
+
 data class TreadmillUiState(
     val isConnected: Boolean = false,
     val speedKmh: Double = 0.0,
@@ -53,6 +83,7 @@ data class TreadmillUiState(
     /** False on OS versions without system pairing; the UI then offers a plain scan-and-connect. */
     val canPair: Boolean = true,
     val workout: WorkoutUiState = WorkoutUiState(),
+    val share: ShareUi = ShareUi(),
 ) {
     private val speedTenths: Int get() = (speedKmh * 10).roundToInt()
     val canIncreaseSpeed: Boolean get() = isRunning && speedTenths < TreadmillViewModel.MAX_SPEED_TENTHS
@@ -158,13 +189,24 @@ class TreadmillViewModel(
     private val session: TreadmillSession,
     private val workouts: WorkoutRecorder,
     private val relay: WatchRelay,
+    /** Null on hosts that do not configure live sharing. */
+    private val share: LiveShareEngine? = null,
 ) : ViewModel() {
-    private class Walk(val status: WorkoutStatus, val heart: HeartRateSample?, val companion: CompanionState) {
+    private class Walk(
+        val status: WorkoutStatus,
+        val heart: HeartRateSample?,
+        val companion: CompanionState,
+        val share: LiveShareStatus,
+        val heartRateByDefault: Boolean,
+    ) {
         /** The health store's reading where it measures heart rate, else the watch's own message. */
         val bpm: Int? get() = status.heartRateBpm ?: heart?.bpm
     }
 
     private val error = MutableStateFlow<TreadmillError?>(null)
+    private val shareStatus = share?.status ?: NO_SHARE_STATUS
+    private val shareHeartRateByDefault = share?.shareHeartRateByDefault ?: NO_SHARE_HEART_RATE
+
 
     /** Last speed requested via the stepper, so rapid taps build on each other before telemetry catches up. */
     private var requestedTenths: Int? = null
@@ -175,7 +217,14 @@ class TreadmillViewModel(
      */
     private var paceAt = PadCounters.Zero
 
-    private val walk = combine(workouts.status, relay.heartRate, relay.companion, ::Walk)
+    private val walk = combine(
+        workouts.status,
+        relay.heartRate,
+        relay.companion,
+        shareStatus,
+        shareHeartRateByDefault,
+        ::Walk,
+    )
 
     val uiState: StateFlow<TreadmillUiState> =
         combine(session.connectionState, session.telemetry, session.association, error, walk) { connection, telemetry, association, error, walk ->
@@ -197,6 +246,7 @@ class TreadmillViewModel(
                     companion = walk.companion,
                     showWatchTip = connected && walk.companion == CompanionState.AppNotInstalled && !walk.status.watchTipDismissed,
                 ),
+                share = walk.share.toUi(walk.heartRateByDefault),
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, TreadmillUiState())
 
@@ -276,6 +326,12 @@ class TreadmillViewModel(
 
     fun pauseWorkout() = workouts.pause()
     fun resumeWorkout() = workouts.resume()
+    fun startShare(includeHeartRate: Boolean) = requiredShare().share(includeHeartRate)
+    fun stopShare() = requiredShare().stopSharing()
+    fun dismissShareEnded() = requiredShare().dismissEnded()
+
+    private fun requiredShare() = checkNotNull(share) { "Live sharing is not configured on this platform" }
+
 
     /** Stops the belt, if it is a pad walk, and saves the workout. */
     fun endWorkout() = workouts.end()
@@ -405,6 +461,9 @@ class TreadmillViewModel(
         if (meters < MIN_PACE_METERS) null else (seconds * 1000L / meters).toInt()
 
     companion object {
+        private val NO_SHARE_STATUS = MutableStateFlow<LiveShareStatus>(LiveShareStatus.Off)
+        private val NO_SHARE_HEART_RATE = MutableStateFlow(false)
+
         private const val MIN_PACE_METERS = 50
 
         const val MIN_SPEED_TENTHS = TreadmillCommand.SetSpeed.MIN_TENTHS

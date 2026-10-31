@@ -10,7 +10,7 @@ final class TreadmillModel: ObservableObject {
 
     /// The session and recorder outlive this model, so the connection and the walk go on when the view goes away.
     init(app: IosApp) {
-        viewModel = TreadmillViewModel(session: app.session, workouts: app.workouts, relay: app.relay)
+        viewModel = TreadmillViewModel(session: app.session, workouts: app.workouts, relay: app.relay, share: app.share)
         subscription = viewModel.watch { [weak self] state in
             self?.state = state
         }
@@ -46,6 +46,9 @@ final class TreadmillModel: ObservableObject {
         viewModel.setProfile(birthYear: birthYear.map { KotlinInt(value: Int32($0)) }, sex: sex)
     }
     func onForeground() { viewModel.onForeground() }
+    func startShare(_ includeHeartRate: Bool) { viewModel.startShare(includeHeartRate: includeHeartRate) }
+    func stopShare() { viewModel.stopShare() }
+    func dismissShareEnded() { viewModel.dismissShareEnded() }
 }
 
 @MainActor
@@ -162,6 +165,9 @@ struct TreadmillActions {
     var dismissStartRejected: () -> Void = {}
     var pauseWorkout: () -> Void = {}
     var resumeWorkout: () -> Void = {}
+    var startShare: (Bool) -> Void = { _ in }
+    var stopShare: () -> Void = {}
+    var dismissShareEnded: () -> Void = {}
     var endWorkout: () -> Void = {}
     var dismissSummary: () -> Void = {}
     var deleteSummary: () -> Void = {}
@@ -209,7 +215,8 @@ struct ContentView: View {
             toggleBelt: model.toggleBelt, stopBelt: model.stopBelt, increaseSpeed: model.increaseSpeed,
             decreaseSpeed: model.decreaseSpeed, dismissError: model.dismissError, startWorkout: model.startWorkout,
             dismissStartRejected: model.dismissStartRejected, pauseWorkout: model.pauseWorkout,
-            resumeWorkout: model.resumeWorkout, endWorkout: model.endWorkout, dismissSummary: model.dismissSummary,
+            resumeWorkout: model.resumeWorkout, startShare: model.startShare, stopShare: model.stopShare,
+            dismissShareEnded: model.dismissShareEnded, endWorkout: model.endWorkout, dismissSummary: model.dismissSummary,
             deleteSummary: model.deleteSummary, connectHealth: model.connectHealth, dismissHealthCard: model.dismissHealthCard,
             dismissWatchTip: model.dismissWatchTip, dismissTooShort: model.dismissTooShort, retrySync: model.retrySync,
             setWeight: model.setWeight, setProfile: model.setProfile
@@ -423,7 +430,7 @@ func previewState(
     TreadmillUiState(
         isConnected: connected, speedKmh: running ? 3.5 : 0, isRunning: running, isConnecting: connecting,
         error: error, elapsedSeconds: running ? 1254 : 0, distanceMeters: running ? 1220 : 0, steps: running ? 1742 : 0,
-        isPaired: paired, canPair: true, workout: workout
+        isPaired: paired, canPair: true, workout: workout, share: TreadmillViewModelKt.initialTreadmillUiState().share
     )
 }
 
@@ -484,4 +491,11 @@ func previewHistory(walks: [PastWalk] = previewWalks, connected: Bool = true, lo
         historyActions: HistoryActions()
     )
 }
-#Preview("Live (mock)") { ContentView(app: IosTreadmillSessionKt.createIosApp(simulated: true)) }
+#Preview("Live (mock)") {
+    ContentView(app: IosTreadmillSessionKt.createIosApp(
+        simulated: true,
+        shareCipher: ShareCipher(),
+        relayUrl: ShareConfig.relayUrl,
+        viewerUrl: ShareConfig.viewerUrl
+    ))
+}

@@ -39,6 +39,9 @@
     "%d m away" : {
 
     },
+    "%d watching" : {
+
+    },
     "Access is off. Walks stay on this iPhone." : {
 
     },
@@ -279,6 +282,9 @@
     "Hold to Unlock" : {
 
     },
+    "Include Heart Rate" : {
+
+    },
     "Import" : {
 
     },
@@ -344,6 +350,9 @@
 
     },
     "No Routes" : {
+
+    },
+    "No one watching yet" : {
 
     },
     "No Walks" : {
@@ -493,6 +502,24 @@
     "Shape" : {
 
     },
+    "Share" : {
+
+    },
+    "Share Link" : {
+
+    },
+    "Share Workout" : {
+
+    },
+    "Sharing Ended" : {
+
+    },
+    "Sharing Unavailable" : {
+
+    },
+    "Sharing was refused by the server." : {
+
+    },
     "Show More" : {
 
     },
@@ -515,6 +542,9 @@
 
     },
     "Stop Connecting" : {
+
+    },
+    "Stop Sharing" : {
 
     },
     "Summary" : {

@@ -1,0 +1,4 @@
+language = Objective-C
+headers = RequestSetters.h
+compilerOpts = -framework Foundation
+package = com.github.nols1000.hashiru.iosinterop

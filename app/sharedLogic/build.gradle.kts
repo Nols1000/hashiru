@@ -14,6 +14,12 @@ kotlin {
             baseName = "SharedLogic"
             isStatic = true
         }
+        iosTarget.compilations.getByName("main") {
+            cinterops.create("requestSetters") {
+                definitionFile.set(project.file("src/nativeInterop/cinterop/requestSetters.def"))
+                compilerOpts("-I${project.file("src/nativeInterop/cinterop").absolutePath}")
+            }
+        }
     }
     // The web viewer's logic, as an npm library with TypeScript definitions for app/webApp. Tests run on
     // Node, which has WebCrypto, rather than in a headless browser.
