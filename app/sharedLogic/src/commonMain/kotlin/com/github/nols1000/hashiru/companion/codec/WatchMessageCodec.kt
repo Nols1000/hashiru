@@ -19,8 +19,8 @@ sealed interface WatchMessage {
 
 /**
  * UTF-8 text with fields split by `|`: a kind letter, the format version, then the fields. Booleans are `0`/`1`
- * and absent values are empty. The watchOS app has its own copy of this format (`PhoneLink.swift`); keep both
- * in step with these examples:
+ * and absent values are empty. The watchOS app has its own copy of this format (`WatchCodec.swift`); both are
+ * checked against `fixtures/watch-codec-vectors.json`. Examples:
  *
  * ```
  * T|2|Active|1|1|35|754|612|112|Aerobic|0|1|12|4380|1|0
