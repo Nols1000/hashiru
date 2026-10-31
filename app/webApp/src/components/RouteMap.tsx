@@ -7,6 +7,10 @@ import type { GeoJSONSource, LayerSpecification, StyleSpecification } from 'mapl
 import { Protocol } from 'pmtiles';
 import { useEffect, useRef } from 'react';
 import type { LatLon, ShareView } from 'sharedLogic';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+
+// MapLibre looks for its worker beside its own module, which bundling moves; Vite emits it where this says.
+maplibregl.setWorkerUrl(workerUrl);
 
 /**
  * The basemap, a PMTiles extract on the static host or wherever VITE_PMTILES_URL points; without it, the route
