@@ -16,8 +16,6 @@ import io.ktor.server.sse.heartbeat
 import io.ktor.server.sse.sse
 import io.ktor.sse.ServerSentEvent
 import io.ktor.utils.io.readRemaining
-import kotlinx.coroutines.flow.onSubscription
-import kotlinx.coroutines.flow.takeWhile
 import kotlinx.io.readByteArray
 import java.util.Base64
 import kotlin.time.Duration.Companion.seconds
@@ -91,26 +89,26 @@ fun Route.shareRoutes(store: ShareStore) {
             }
             // A comment now and then, which viewers ignore, keeps proxies and the load balancer from closing a quiet stream.
             heartbeat { period = 30.seconds }
+            val watch = store.watch(share)
             try {
                 var last = Long.MIN_VALUE
-                share.signalFlow
-                    // Reading what is held once subscribed, so nothing published in between is missed.
-                    .onSubscription {
-                        store.held(share).forEach { emit(ShareSignal.Frame(it)) }
-                        if (share.ended) emit(ShareSignal.Ended)
-                    }
-                    .takeWhile { it != ShareSignal.Gone }
-                    .collect { signal ->
-                        when (signal) {
-                            is ShareSignal.Frame -> if (signal.frame.seq > last) {
-                                send(signal.frame.event())
-                                last = signal.frame.seq
-                            }
-                            ShareSignal.Ended -> send(ServerSentEvent(event = "e", data = ""))
-                            ShareSignal.Gone -> Unit
+                watch.held.forEach {
+                    send(it.event())
+                    last = it.seq
+                }
+                if (watch.ended) send(ServerSentEvent(event = "e", data = ""))
+                // Ends when the relay closes the channel: the viewer fell behind, or the share is gone.
+                for (signal in watch.signals) {
+                    when (signal) {
+                        is ShareSignal.Frame -> if (signal.frame.seq > last) {
+                            send(signal.frame.event())
+                            last = signal.frame.seq
                         }
+                        ShareSignal.Ended -> send(ServerSentEvent(event = "e", data = ""))
                     }
+                }
             } finally {
+                store.unwatch(share, watch)
                 store.leave(share)
             }
         }

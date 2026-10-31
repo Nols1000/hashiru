@@ -1,6 +1,8 @@
 package com.github.nols1000.hashiru
 
+import com.github.nols1000.hashiru.share.ShareSignal
 import com.github.nols1000.hashiru.share.ShareStore
+import com.github.nols1000.hashiru.share.StoredFrame
 import io.ktor.client.plugins.sse.SSE
 import io.ktor.client.plugins.sse.sse
 import io.ktor.client.request.bearerAuth
@@ -25,6 +27,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ShareRelayTest {
     private val id = "AAAAAAAAAAAAAAAAAAAAAA"
@@ -126,6 +129,31 @@ class ShareRelayTest {
         } finally {
             server.stop(0, 0)
         }
+    }
+
+    @Test
+    fun aStalledViewerIsClosedWithoutCostingTheOthersFrames() = runBlocking {
+        store.open(id, token, presence)
+        val nonce = store.challenge(id)!!
+        val share = store.admit(id, nonce, Base64.getUrlDecoder().decode(proof(nonce)))!!
+        val stalled = store.watch(share)
+        val reading = store.watch(share)
+
+        val count = store.limits.maxBehind * 2L
+        for (seq in 1..count) {
+            assertEquals(ShareStore.Result.Ok, store.publish(id, token, StoredFrame(seq, false, byteArrayOf(seq.toByte()))))
+            assertEquals(seq, (reading.signals.receive() as ShareSignal.Frame).frame.seq)
+        }
+        store.close(id, token)
+        assertEquals(ShareSignal.Ended, reading.signals.receive())
+
+        // The stalled viewer keeps what fit, then its stream ends; reconnecting, it gets every frame and the end.
+        var kept = 0
+        for (signal in stalled.signals) kept++
+        assertEquals(store.limits.maxBehind, kept)
+        val again = store.watch(share)
+        assertEquals((1..count).toList(), again.held.map { it.seq })
+        assertTrue(again.ended)
     }
 
     @Test

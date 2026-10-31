@@ -1,8 +1,7 @@
 package com.github.nols1000.hashiru.share
 
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.TreeMap
@@ -17,10 +16,13 @@ data class StoredFrame(val seq: Long, val snapshot: Boolean, val bytes: ByteArra
 sealed interface ShareSignal {
     data class Frame(val frame: StoredFrame) : ShareSignal
     data object Ended : ShareSignal
-
-    /** The relay forgot the share; streams close. */
-    data object Gone : ShareSignal
 }
+
+/**
+ * A viewer's view of a share: what was held when it arrived, then what follows. [signals] closes when the viewer
+ * fell too far behind, or when the relay forgot the share; the viewer reconnects and starts over from [held].
+ */
+class Watch internal constructor(val held: List<StoredFrame>, val ended: Boolean, val signals: ReceiveChannel<ShareSignal>)
 
 /**
  * Live shares, in memory only: nothing about them reaches the disk, and a restart forgets them all, which the
@@ -38,6 +40,8 @@ class ShareStore(
         /** Frames held after the snapshot; the phone sends a new snapshot long before. */
         val maxFramesAfterSnapshot: Int = 2_000,
         val maxWatchers: Int = 2_000,
+        /** Signals a viewer may lag behind before its stream closes, so a slow viewer never holds up the others. */
+        val maxBehind: Int = 64,
         val lifetimeMs: Long = 24 * 3_600_000L,
         val keepEndedMs: Long = 3_600_000L,
         val challengeMs: Long = 60_000L,
@@ -53,10 +57,14 @@ class ShareStore(
         internal var snapshot: StoredFrame? = null
         internal val frames = TreeMap<Long, StoredFrame>()
         internal var watchers = 0
-        internal val signals = MutableSharedFlow<ShareSignal>(extraBufferCapacity = 64)
+        internal val viewers = LinkedHashSet<Channel<ShareSignal>>()
 
         val ended: Boolean get() = endedMs != null
-        val signalFlow: SharedFlow<ShareSignal> get() = signals.asSharedFlow()
+
+        /** Hands [signal] to every viewer, closing those with no room left; call it holding the share's lock. */
+        internal fun signal(signal: ShareSignal) {
+            viewers.removeIf { viewer -> viewer.trySend(signal).isFailure.also { if (it) viewer.close() } }
+        }
     }
 
     sealed interface Result {
@@ -94,15 +102,19 @@ class ShareStore(
                 if (share.frames.size >= limits.maxFramesAfterSnapshot) return Result.TooLarge
                 share.frames[frame.seq] = frame
             }
+            share.signal(ShareSignal.Frame(frame))
         }
-        share.signals.tryEmit(ShareSignal.Frame(frame))
         return Result.Ok
     }
 
     fun close(id: String, token: ByteArray): Result {
         val share = authorized(id, token) ?: return if (shares.containsKey(id)) Result.Forbidden else Result.NotFound
-        share.endedMs = share.endedMs ?: nowMs()
-        share.signals.tryEmit(ShareSignal.Ended)
+        synchronized(share) {
+            if (share.endedMs == null) {
+                share.endedMs = nowMs()
+                share.signal(ShareSignal.Ended)
+            }
+        }
         return Result.Ok
     }
 
@@ -141,12 +153,27 @@ class ShareStore(
     /** The snapshot and what followed it, for a viewer who just arrived. */
     fun held(share: Share): List<StoredFrame> = synchronized(share) { listOfNotNull(share.snapshot) + share.frames.values }
 
+    /** Starts handing [share]'s signals to a viewer, from what is held right now, so nothing in between is missed. */
+    fun watch(share: Share): Watch = synchronized(share) {
+        val signals = Channel<ShareSignal>(limits.maxBehind)
+        share.viewers += signals
+        Watch(held(share), share.ended, signals)
+    }
+
+    fun unwatch(share: Share, watch: Watch) = synchronized(share) {
+        share.viewers.remove(watch.signals)
+        watch.signals.cancel()
+    }
+
     /** Forgets shares that ended a while ago or ran out of time, and challenges no one answered. */
     fun sweep() {
         val now = nowMs()
         shares.values.removeIf { share ->
             val expired = share.endedMs?.let { now - it > limits.keepEndedMs } ?: false || now - share.createdMs > limits.lifetimeMs
-            if (expired) share.signals.tryEmit(ShareSignal.Gone)
+            if (expired) synchronized(share) {
+                share.viewers.forEach { it.close() }
+                share.viewers.clear()
+            }
             expired
         }
         challenges.values.removeIf { now - it.second > limits.challengeMs }
