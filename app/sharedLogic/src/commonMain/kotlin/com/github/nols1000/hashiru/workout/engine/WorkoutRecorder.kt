@@ -184,8 +184,7 @@ class WorkoutRecorder internal constructor(
         }
     }
 
-    /** Starts a workout of [kind] that the phone tracks, once the health store confirms it. */
-    /** Starts a workout of [kind] that the phone tracks, once the health store confirms it, following [courseId]. */
+    /** Starts a workout of [kind] that the phone tracks, following the course [courseId] where there is one, once the health store confirms it. */
     fun start(kind: WorkoutKind, courseId: String? = null) {
         startRejected = null
         apply(WorkoutInput.UserStart(kind, courseId))

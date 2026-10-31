@@ -207,7 +207,6 @@ class TreadmillViewModel(
     private val shareStatus = share?.status ?: NO_SHARE_STATUS
     private val shareHeartRateByDefault = share?.shareHeartRateByDefault ?: NO_SHARE_HEART_RATE
 
-
     /** Last speed requested via the stepper, so rapid taps build on each other before telemetry catches up. */
     private var requestedTenths: Int? = null
 
@@ -319,8 +318,7 @@ class TreadmillViewModel(
         error.value = null
     }
 
-    /** Starts a workout of [kind] that the phone tracks; with the pad, starting the belt starts the walk instead. */
-    /** Starts a phone workout of [kind], following the course [courseId] where there is one. */
+    /** Starts a phone workout of [kind], following the course [courseId] where there is one; with the pad, starting the belt starts the walk instead. */
     fun startWorkout(kind: WorkoutKind, courseId: String?) = workouts.start(kind, courseId)
     fun dismissStartRejected() = workouts.dismissStartRejected()
 
@@ -331,7 +329,6 @@ class TreadmillViewModel(
     fun dismissShareEnded() = requiredShare().dismissEnded()
 
     private fun requiredShare() = checkNotNull(share) { "Live sharing is not configured on this platform" }
-
 
     /** Stops the belt, if it is a pad walk, and saves the workout. */
     fun endWorkout() = workouts.end()
