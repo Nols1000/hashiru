@@ -100,3 +100,7 @@ val watchCodecVectors = tasks.register("generateWatchCodecVectors") {
 kotlin.sourceSets.commonTest {
     kotlin.srcDir(watchCodecVectors)
 }
+
+// Lint reads the test sources too, but not through the source set's task wiring.
+tasks.matching { it.name.startsWith("generate") && it.name.endsWith("LintModel") || it.name.startsWith("lintAnalyze") }
+    .configureEach { dependsOn(watchCodecVectors) }
