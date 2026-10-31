@@ -69,17 +69,15 @@ struct LiveWorkoutView: View {
 
     /// Just tall enough for the round buttons and their margin, like the timer bar in Fitness.
     @ScaledMetric(relativeTo: .largeTitle) private var compactHeight: CGFloat = 88
-    /// Three buttons of 64 with their spacing, and the bottom margin.
-    @ScaledMetric(relativeTo: .headline) private var listHeight: CGFloat = 238
-    /// Pause, listed under the speed on the pad, with its spacing.
-    @ScaledMetric(relativeTo: .headline) private var pauseHeight: CGFloat = 74
+    /// The sheet's controls as laid out, which grow with sharing; pulled up, the sheet shows them all.
+    @State private var controlsHeight: CGFloat = 0
     @State private var detent = PresentationDetent.height(88)
     @State private var locked = false
     /// Asks for location on the ready screen, so the prompt does not hold up the start.
     @State private var location = CLLocationManager()
 
     private var session: WorkoutSession { WorkoutSession(state: state, kind: kind, course: course) }
-    private var expandedHeight: CGFloat { compactHeight + listHeight + (session.onPad && !session.held ? pauseHeight : 0) }
+    private var expandedHeight: CGFloat { max(controlsHeight, compactHeight + 1) }
 
     var body: some View {
         pages
@@ -95,7 +93,10 @@ struct LiveWorkoutView: View {
             .sensoryFeedback(.warning, trigger: state.workout.connectionLost) { _, lost in lost }
             // There as long as the cover it sits on, which goes when the workout ends, never by a swipe.
             .sheet(isPresented: .constant(true)) {
-                WorkoutControlsSheet(state: state, actions: actions, session: session, onCancel: onCancel, locked: $locked)
+                WorkoutControlsSheet(
+                    state: state, actions: actions, session: session, onCancel: onCancel, locked: $locked,
+                    expanded: detent == .height(expandedHeight), height: $controlsHeight
+                )
                     .presentationDetents([.height(compactHeight), .height(expandedHeight)], selection: $detent)
                     .presentationDragIndicator(.visible)
                     .presentationBackgroundInteraction(.enabled(upThrough: .height(compactHeight)))
@@ -105,6 +106,9 @@ struct LiveWorkoutView: View {
             }
             .onChange(of: compactHeight, initial: true) { _, height in
                 if detent != .height(expandedHeight) { detent = .height(height) }
+            }
+            .onChange(of: expandedHeight) { old, new in
+                if detent == .height(old) { detent = .height(new) }
             }
             .task {
                 if session.kind.outdoor && location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() }
@@ -414,20 +418,26 @@ private struct WorkoutControlsSheet: View {
     let session: WorkoutSession
     let onCancel: () -> Void
     @Binding var locked: Bool
+    /// Pulled up; only then do controls too tall for the screen scroll.
+    let expanded: Bool
+    @Binding var height: CGFloat
 
     @State private var showingDevices = false
 
     private var workout: WorkoutUiState { state.workout }
 
     var body: some View {
-        // No scroll view: a drag anywhere moves the sheet itself, as in Workout. Laid out from the top at full
-        // height, so the compact sheet shows the first row and cuts off the rest.
-        GeometryReader { geometry in
+        // A drag anywhere moves the sheet itself, as in Workout; it scrolls only pulled up, where the controls are
+        // taller than the screen, as with large text. Laid out from the top at full height, so the compact sheet
+        // shows the first row and cuts off the rest.
+        ScrollView {
             controls
-                .frame(width: geometry.size.width, alignment: .top)
+                .onGeometryChange(for: CGFloat.self, of: \.size.height) { height = $0 }
         }
-        .clipped()
-        .ignoresSafeArea(.container, edges: .top)
+        .scrollDisabled(!expanded)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
+        .ignoresSafeArea(.container, edges: .vertical)
         .sheet(isPresented: $showingDevices) {
             ConnectedDevicesSheet(state: state, actions: actions)
         }
