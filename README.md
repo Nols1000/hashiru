@@ -17,7 +17,7 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web, Server.
 * [/app/webApp](./app/webApp/src) is the web viewer for live shares, a React application. It uses the Kotlin/JS
   library produced by the sharedLogic module, which follows the share and decrypts it; the React code only renders.
   It is built for a static host that passes `/api` on to the relay ([/server](./server/src/main/kotlin)) on the same
-  origin, as the cluster's gateway does (see [Deployment](#deployment)). Set `VITE_PMTILES_URL` to a PMTiles extract for a basemap; without it, routes show on a plain background.
+  origin, as the cluster's gateway does (see [Deployment](#deployment)). `VITE_PMTILES_URL` points at a PMTiles extract for the basemap; built pages use the Protomaps world build that [.env.production](./app/webApp/.env.production) names, and the dev server shows routes on a plain background unless it is set.
 
 * [/app/sharedLogic](./app/sharedLogic/src) is the logic every app shares: the treadmill, workout, course,
   companion and live-share code in [commonMain](./app/sharedLogic/src/commonMain/kotlin), with adapters for each
