@@ -102,9 +102,19 @@ internal class RouteTracker private constructor(
         }
     }
 
-    /** Waits for the user to answer the location prompt. */
-    private class Authorization : NSObject(), CLLocationManagerDelegateProtocol {
-        val answered = CompletableDeferred<CLAuthorizationStatus>()
+    /**
+     * Waits for the user to answer the location prompt. The manager holds its delegate weakly; [request] uses
+     * the delegate again after the answer, so the coroutine keeps it alive while it waits.
+     */
+    private class Authorization(private val manager: CLLocationManager) : NSObject(), CLLocationManagerDelegateProtocol {
+        private val answered = CompletableDeferred<CLAuthorizationStatus>()
+
+        suspend fun request() {
+            manager.delegate = this
+            manager.requestWhenInUseAuthorization()
+            answered.await()
+            manager.delegate = null
+        }
 
         override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
             val status = manager.authorizationStatus
@@ -120,11 +130,7 @@ internal class RouteTracker private constructor(
         suspend fun begin(id: String, emit: (HealthEvent) -> Unit): RouteStart {
             val manager = CLLocationManager()
             if (manager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
-                val authorization = Authorization()
-                manager.delegate = authorization
-                manager.requestWhenInUseAuthorization()
-                authorization.answered.await()
-                manager.delegate = null
+                Authorization(manager).request()
             }
             if (!manager.authorizationStatus.allowed()) return RouteStart.Rejected(RejectReason.LocationAccessDenied)
             return RouteStart.Started(RouteTracker(id, manager, emit).also { it.begin() })
