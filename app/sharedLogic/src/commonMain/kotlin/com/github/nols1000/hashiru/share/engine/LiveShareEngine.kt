@@ -217,6 +217,8 @@ class LiveShareEngine internal constructor(
             is RelayEvent.Gone -> if (event.shareId == active.id) {
                 active.ackedRoute = 0
                 active.pending.clear()
+                // The relay forgot the viewers the adapter was waiting for along with the share.
+                active.awaiting = false
                 open(active)
             }
             is RelayEvent.Refused -> if (event.shareId == active.id) {
@@ -229,19 +231,21 @@ class LiveShareEngine internal constructor(
     private fun watchers(active: ActiveShare, count: Int) {
         val before = active.watchers
         active.watchers = count
-        if (before == 0 && count > 0) {
-            // Whoever just arrived may be looking at an old snapshot.
-            publish(active, snapshot = true)
-            tick(active)
-        } else if (count == 0) {
+        if (count > 0) {
+            // The adapter stops waiting for viewers once it has seen some.
+            active.awaiting = false
+            if (before == 0) {
+                // Whoever just arrived may be looking at an old snapshot.
+                publish(active, snapshot = true)
+                tick(active)
+            }
+        } else {
             active.ticker?.cancel()
             active.ticker = null
             if (!active.awaiting) {
                 active.awaiting = true
                 relay.handle(RelayRequest.AwaitViewers(active.id, active.writeToken))
             }
-        } else {
-            active.awaiting = false
         }
         publishStatus()
     }
@@ -391,6 +395,7 @@ class LiveShareEngine internal constructor(
         val sealer by lazy { SFrameSealer(cipher, baseKey, Random.nextLong(1L shl 31)) }
         var offline = false
         var watchers = 0
+        /** The adapter is waiting for viewers, as asked by [RelayRequest.AwaitViewers]. */
         var awaiting = false
         var ticker: Job? = null
 

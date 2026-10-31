@@ -238,6 +238,46 @@ class LiveShareEngineTest {
     }
 
     @Test
+    fun viewersAreStillNoticedAfterTheRelayForgotTheShare() = runTest {
+        workouts.value = walking(2)
+        val engine = engine()
+        engine.share()
+        runCurrent()
+        val id = relay.requests.first().shareId
+
+        relay.forget(id)
+        runCurrent()
+        val before = publishes.size
+        relay.arrive(id)
+        runCurrent()
+
+        assertEquals(before + 1, publishes.size)
+        assertIs<ShareMessage.Snapshot>(publishes.last().message())
+        assertEquals(1, assertIs<LiveShareStatus.Live>(engine.status.value).watchers)
+    }
+
+    @Test
+    fun aViewerWhoLeftBeforeTheSnapshotDoesNotHideTheNext() = runTest {
+        workouts.value = walking(2)
+        val engine = engine()
+        engine.share()
+        runCurrent()
+        val id = relay.requests.first().shareId
+
+        // Gone again by the time the relay confirms the snapshot made for them.
+        relay.arrive(id)
+        relay.leave(id)
+        runCurrent()
+        assertEquals(0, assertIs<LiveShareStatus.Live>(engine.status.value).watchers)
+
+        val before = publishes.size
+        relay.arrive(id)
+        runCurrent()
+        assertEquals(before + 1, publishes.size)
+        assertEquals(1, assertIs<LiveShareStatus.Live>(engine.status.value).watchers)
+    }
+
+    @Test
     fun indoorWorkoutsShareStatsAtAGentlerPace() = runTest {
         workouts.value = WorkoutStatus(phase = WorkoutPhase.Active, kind = WorkoutKind.IndoorWalk, totals = PadCounters(60, 80, 100))
         val engine = engine()

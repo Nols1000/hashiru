@@ -22,7 +22,12 @@ sealed interface RelayRequest {
         val snapshot: Boolean,
     ) : RelayRequest
 
-    /** No one is watching: tell the engine once someone opens the link, however the platform learns of it. */
+    /**
+     * No one is watching: tell the engine once someone opens the link, however the platform learns of it. The
+     * adapter keeps watching through publishes and outages, and stops once it has reported [RelayEvent.Watchers]
+     * above 0, on [Close], or when the relay no longer knows the share ([RelayEvent.Gone]); the engine asks again
+     * the next time the count falls to 0. Harmless to repeat while one stands.
+     */
     class AwaitViewers(override val shareId: String, override val writeToken: ByteArray) : RelayRequest
 
     /** The share ended; the relay keeps the last snapshot for a while, then forgets the share. */
@@ -36,7 +41,7 @@ sealed interface RelayEvent {
     /** The relay holds [seq]; [watchers] pages are open on the share. */
     data class Acked(val shareId: String, val seq: Long, val watchers: Int) : RelayEvent
 
-    /** The number of open pages changed while the engine was not publishing. */
+    /** Someone opened the link while the engine was not publishing, in answer to [RelayRequest.AwaitViewers]. */
     data class Watchers(val shareId: String, val count: Int) : RelayEvent
 
     /** Requests are failing for want of a network; [Reachable] follows when it is back. */

@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 
 /**
  * Relay kept in memory, answering at once. It reports [watchers] pages open on every share; set [reachable]
- * to false to have requests fail as without a network, and call [arrive] to have a viewer open the link.
+ * to false to have requests fail as without a network, and call [arrive] or [leave] to have a viewer open or
+ * close the link. Like a real adapter, it tells of an arrival only while it waits for viewers; otherwise the
+ * count shows up in the next ack.
  */
 class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
     private val _events = MutableSharedFlow<RelayEvent>(extraBufferCapacity = 64)
@@ -23,6 +25,9 @@ class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
     val frames = mutableMapOf<String, MutableMap<Long, RelayRequest.Publish>>()
     val closed = mutableSetOf<String>()
 
+    /** Shares waiting for viewers, as asked by [RelayRequest.AwaitViewers]. */
+    val awaiting = mutableSetOf<String>()
+
     var reachable = true
         set(value) {
             if (field == value) return
@@ -32,6 +37,12 @@ class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
 
     override fun handle(request: RelayRequest) {
         _requests += request
+        // Waiting for viewers outlasts an outage, as a real adapter keeps asking.
+        when (request) {
+            is RelayRequest.AwaitViewers -> awaiting += request.shareId
+            is RelayRequest.Close -> awaiting -= request.shareId
+            else -> Unit
+        }
         if (!reachable) return
         when (request) {
             is RelayRequest.Open -> _events.tryEmit(RelayEvent.Opened(request.shareId))
@@ -49,12 +60,18 @@ class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
     /** A viewer opens [shareId]'s link. */
     fun arrive(shareId: String) {
         watchers++
-        _events.tryEmit(RelayEvent.Watchers(shareId, watchers))
+        if (awaiting.remove(shareId)) _events.tryEmit(RelayEvent.Watchers(shareId, watchers))
+    }
+
+    /** A viewer closes [shareId]'s link; the next ack tells. */
+    fun leave(shareId: String) {
+        watchers = maxOf(0, watchers - 1)
     }
 
     /** The relay restarts and forgets [shareId]. */
     fun forget(shareId: String) {
         frames.remove(shareId)
+        awaiting -= shareId
         _events.tryEmit(RelayEvent.Gone(shareId))
     }
 }

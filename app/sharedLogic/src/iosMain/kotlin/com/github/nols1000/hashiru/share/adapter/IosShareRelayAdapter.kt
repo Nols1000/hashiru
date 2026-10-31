@@ -49,7 +49,8 @@ class IosShareRelayAdapter(baseUrl: String) : ShareRelayPort {
 
     override fun handle(request: RelayRequest) {
         dispatch_async(queue) {
-            if (request is RelayRequest.Publish || request is RelayRequest.Close) {
+            // Waiting for viewers outlasts publishes; see RelayRequest.AwaitViewers.
+            if (request is RelayRequest.Close) {
                 polls.remove(request.shareId)?.task?.cancel()
                 pending.removeAll { it is RelayRequest.AwaitViewers && it.shareId == request.shareId }
             }
@@ -63,7 +64,8 @@ class IosShareRelayAdapter(baseUrl: String) : ShareRelayPort {
         while (pending.isNotEmpty()) {
             val request = pending.removeAt(0)
             if (request is RelayRequest.AwaitViewers) {
-                polls.getOrPut(request.shareId) { Poll(request) }.due = true
+                // One standing poll per share; asking again while it stands changes nothing.
+                if (request.shareId !in polls) polls[request.shareId] = Poll(request).also { it.due = true }
                 continue
             }
             send(request)
@@ -177,11 +179,13 @@ class IosShareRelayAdapter(baseUrl: String) : ShareRelayPort {
             val status = http.statusCode.toInt()
             if (status in 200..299) {
                 signalReachable()
-                data.decodeToString().trim().toIntOrNull()?.let { count ->
-                    if (poll.lastCount != count) {
-                        poll.lastCount = count
-                        _events.tryEmit(RelayEvent.Watchers(poll.request.shareId, count))
-                    }
+                val count = data.decodeToString().trim().toIntOrNull() ?: 0
+                if (count > 0) {
+                    // The engine publishes now, and asks again once no one watches.
+                    polls.remove(poll.request.shareId)
+                    _events.tryEmit(RelayEvent.Watchers(poll.request.shareId, count))
+                    drain()
+                    return
                 }
             } else if (status == 401 || status == 403 || status == 404) {
                 signalReachable()
@@ -241,7 +245,6 @@ class IosShareRelayAdapter(baseUrl: String) : ShareRelayPort {
 
     private class Poll(val request: RelayRequest.AwaitViewers) {
         var due = false
-        var lastCount: Int? = null
         var task: NSURLSessionDataTask? = null
     }
 
