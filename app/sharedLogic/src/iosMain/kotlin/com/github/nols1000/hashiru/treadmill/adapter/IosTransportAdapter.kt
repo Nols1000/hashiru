@@ -81,6 +81,8 @@ class IosTransportAdapter : TreadmillTransportPort {
     private var peripheral: CBPeripheral? = null
     /** A restored peripheral to resume once the manager is powered on; it ignores commands before that. */
     private var awaitingPowerOn: CBPeripheral? = null
+    /** The pad to connect to again once Bluetooth is back on; switching it off invalidates the peripheral. */
+    private var awaitingBluetooth: NSUUID? = null
     private var writeCharacteristic: CBCharacteristic? = null
     private var reconnectsAfterDrop = false
     private var pendingDiscovery: CompletableDeferred<CBPeripheral>? = null
@@ -209,6 +211,39 @@ class IosTransportAdapter : TreadmillTransportPort {
         }
     }
 
+    /**
+     * Bluetooth went off: iOS tears every connection down without reporting the disconnects, and the
+     * peripheral may become invalid. A pad meant to reconnect is retrieved again by identifier on power-on.
+     */
+    private fun onBluetoothLost() {
+        val lost = peripheral ?: return
+        if (!reconnectsAfterDrop) {
+            clearConnection()
+            return
+        }
+        println("$TAG: Bluetooth lost, reconnecting to ${lost.identifier.UUIDString} once it is back")
+        lost.delegate = null
+        peripheral = null
+        writeCharacteristic = null
+        awaitingBluetooth = lost.identifier
+        _connectionState.value = ConnectionState.Connecting
+        // Failed last, so whoever is waiting sees the adapter already settled.
+        pendingSetup?.completeExceptionally(IllegalStateException("Disconnected"))
+        pendingWrite?.completeExceptionally(IllegalStateException("Disconnected"))
+        pendingWriteSpace?.completeExceptionally(IllegalStateException("Disconnected"))
+    }
+
+    private fun reconnect(identifier: NSUUID) {
+        val target = central.retrievePeripheralsWithIdentifiers(listOf(identifier)).filterIsInstance<CBPeripheral>().firstOrNull()
+        if (target == null) {
+            clearConnection()
+            return
+        }
+        println("$TAG: Bluetooth is back, connecting to ${identifier.UUIDString}")
+        bind(target)
+        central.connectPeripheral(target, null)
+    }
+
     private fun clearConnection() {
         pendingSetup?.completeExceptionally(IllegalStateException("Disconnected"))
         pendingWrite?.completeExceptionally(IllegalStateException("Disconnected"))
@@ -216,6 +251,7 @@ class IosTransportAdapter : TreadmillTransportPort {
         peripheral?.delegate = null
         peripheral = null
         awaitingPowerOn = null
+        awaitingBluetooth = null
         writeCharacteristic = null
         _connectionState.value = ConnectionState.Disconnected
     }
@@ -228,11 +264,19 @@ class IosTransportAdapter : TreadmillTransportPort {
 
     private inner class Delegate : NSObject(), CBCentralManagerDelegateProtocol, CBPeripheralDelegateProtocol {
         override fun centralManagerDidUpdateState(central: CBCentralManager) {
+            val wasOn = managerState.value == CBManagerStatePoweredOn
             managerState.value = central.state
-            if (central.state != CBManagerStatePoweredOn) return
+            if (central.state != CBManagerStatePoweredOn) {
+                if (wasOn) onBluetoothLost()
+                return
+            }
             awaitingPowerOn?.let {
                 awaitingPowerOn = null
                 resume(it)
+            }
+            awaitingBluetooth?.let {
+                awaitingBluetooth = null
+                reconnect(it)
             }
         }
 
