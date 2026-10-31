@@ -50,7 +50,8 @@ final class WorkoutSessionManager: NSObject, HKWorkoutSessionDelegate, HKLiveWor
 
     func requestAuthorization() async {
         let shared: Set = [HKObjectType.workoutType(), distanceType, stepsType, activeType, basalType, routeType]
-        let read: Set<HKObjectType> = [heartRateType, distanceType, stepsType, activeType, basalType, routeType]
+        // HealthKit throws, which aborts the app, when routes are asked for without the workouts they belong to.
+        let read: Set<HKObjectType> = [HKObjectType.workoutType(), heartRateType, distanceType, stepsType, activeType, basalType, routeType]
         do {
             try await store.requestAuthorization(toShare: shared, read: read)
         } catch {
