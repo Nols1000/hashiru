@@ -149,10 +149,10 @@ class WorkoutRecorder internal constructor(
     private var course: Course? = null
     private var navigationAlerts = 0
 
+    /** Starts recording, restoring a workout cut off by process death; the session is started by whoever built it, before it. */
     fun start() {
         if (started) return
         started = true
-        session.start()
         // Listening before anything is sent, so no answer is missed.
         scope.launch(start = CoroutineStart.UNDISPATCHED) { health.events.collect(::onHealthEvent) }
         machine = store.inProgress?.let { WorkoutStateMachine.restore(it, nowMs()) } ?: WorkoutState.Idle(store.lastFinalCounters)

@@ -37,7 +37,7 @@ class WalkingPadCompanionService : CompanionDeviceService() {
 
     private fun report(nearby: Boolean) {
         if (nearby) WalkingPadConnectionService.start(this)
-        hashiru.workouts.start()
+        hashiru.start()
         (hashiru.associations as? AndroidCompanionAssociationAdapter)?.onPresenceChanged(nearby)
     }
 }

@@ -89,9 +89,12 @@ fun createIosApp(
     val courses = FileCourseLibrary()
     val workouts = WorkoutRecorder(session, health, storage, courses)
     val relay = WatchRelay(session, workouts, if (simulated) MockWatchCompanionAdapter() else IosWatchConnectivityAdapter())
-    relay.start()
     val shareRelay = if (relayUrl == null) MockShareRelayAdapter() else IosShareRelayAdapter(relayUrl)
     val share = LiveShareEngine(workouts, shareRelay, shareCipher, IosBattery(), storage, viewerUrl)
+    // Each starts after what it listens to, and each listens before it sends, so no answer is missed.
+    session.start()
+    workouts.start()
+    relay.start()
     share.start()
     return IosApp(session, workouts, relay, share, health, storage, courses)
 }
@@ -106,7 +109,6 @@ private fun createIosTreadmillSession(simulated: Boolean): TreadmillSession {
     } else {
         TreadmillSession(IosTransportAdapter(), IosAccessoryAssociationAdapter())
     }
-    session.start()
     if (!simulated) {
         MainScope().launch {
             session.association.filterNotNull().first()

@@ -56,6 +56,7 @@ class WorkoutRecorderTest {
         val recorder = WorkoutRecorder(
             session, health, WorkoutStore(storage), backgroundScope, { epoch + testScheduler.currentTime }, { "walk-1" }, courses,
         )
+        session.start()
         recorder.start()
         runCurrent()
         return session to recorder
@@ -213,11 +214,13 @@ class WorkoutRecorderTest {
         assertTrue(health.saved.isEmpty())
 
         // A new process finds the checkpoint; the walk was cut off long enough ago to have ended.
+        val restartedSession = TreadmillSession(MockTransportAdapter(), MockAssociationAdapter(), backgroundScope, testScheduler.timeSource)
         val restored = WorkoutRecorder(
-            TreadmillSession(MockTransportAdapter(), MockAssociationAdapter(), backgroundScope, testScheduler.timeSource),
+            restartedSession,
             health, WorkoutStore(storage), backgroundScope,
             { epoch + testScheduler.currentTime + WorkoutRules.DISCONNECT_TIMEOUT_MS }, { "walk-2" },
         )
+        restartedSession.start()
         restored.start()
         runCurrent()
 

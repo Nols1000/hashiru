@@ -47,12 +47,21 @@ class HashiruApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Starts the recorder and the session too; a walk cut off by process death is restored or finished here.
-        relay.start()
+        start()
         // Keep the process alive in the background for as long as a connection is wanted; the service stops itself.
         MainScope().launch {
             session.connectionState.collect { if (it != ConnectionState.Disconnected) WalkingPadConnectionService.start(this@HashiruApplication) }
         }
+    }
+
+    /**
+     * Starts the session, the recorder and the relay, each after what it listens to; each listens before it sends,
+     * so no answer is missed. A walk cut off by process death is restored or finished here. Starting again does nothing.
+     */
+    fun start() {
+        session.start()
+        workouts.start()
+        relay.start()
     }
 }
 

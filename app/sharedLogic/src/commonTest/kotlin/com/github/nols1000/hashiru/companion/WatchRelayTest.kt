@@ -43,6 +43,8 @@ class WatchRelayTest {
             InMemoryCourseLibrary(listOf(course)),
         )
         val relay = WatchRelay(session, workouts, watch, backgroundScope)
+        session.start()
+        workouts.start()
         relay.start()
         session.connect()
         runCurrent()

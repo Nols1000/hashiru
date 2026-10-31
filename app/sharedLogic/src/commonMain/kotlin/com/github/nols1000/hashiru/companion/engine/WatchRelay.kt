@@ -87,11 +87,10 @@ class WatchRelay internal constructor(
 
     private var started = false
 
+    /** Starts relaying; the session and the recorder it relays are started by whoever built them, before it. */
     fun start() {
         if (started) return
         started = true
-        workouts.start()
-
         scope.launch {
             port.heartRate.collect { sample ->
                 if (sample.bpm !in WorkoutRules.MIN_HEART_RATE_BPM..WorkoutRules.MAX_HEART_RATE_BPM) return@collect

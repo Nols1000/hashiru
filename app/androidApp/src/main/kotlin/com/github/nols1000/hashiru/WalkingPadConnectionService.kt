@@ -63,7 +63,7 @@ class WalkingPadConnectionService : Service() {
             stopSelf()
             return
         }
-        workouts.start()
+        hashiru.start()
         scope.launch {
             combine(session.connectionState, session.telemetry, workouts.status, ::content)
                 .distinctUntilChanged()

@@ -58,6 +58,7 @@ class HistoryViewModelTest {
         val recorder = WorkoutRecorder(
             session, MockHealthSyncAdapter(authorization = authorization), WorkoutStore(storage), backgroundScope, { now }, { "walk" },
         )
+        session.start()
         recorder.start()
         val weekDays = { _: Long -> (0..7).map { now - 3 * DAY_MS + it * DAY_MS } }
         return HistoryViewModel(history, recorder, WorkoutStore(storage), weekDays, { now }).also { viewModels.put("history", it) }

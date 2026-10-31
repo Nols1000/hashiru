@@ -65,6 +65,13 @@ class TreadmillViewModelTest {
     private fun TestScope.relayFor(session: TreadmillSession, workouts: WorkoutRecorder) =
         WatchRelay(session, workouts, MockWatchCompanionAdapter(simulateHeartRate = false), backgroundScope)
 
+    /** In the app's order; [shareFor] starts the share engine last. */
+    private fun startAll(session: TreadmillSession, workouts: WorkoutRecorder, relay: WatchRelay) {
+        session.start()
+        workouts.start()
+        relay.start()
+    }
+
     private fun TestScope.shareFor(workouts: WorkoutRecorder) =
         LiveShareEngine(
             workouts.status,
@@ -90,6 +97,7 @@ class TreadmillViewModelTest {
         val session = TreadmillSession(transport, associations, scope, testScheduler.timeSource)
         val workouts = recorderFor(session)
         val relay = relayFor(session, workouts)
+        startAll(session, workouts, relay)
         return TreadmillViewModel(session, workouts, relay, shareFor(workouts)).also { store.put("treadmill", it) }
     }
 
@@ -250,6 +258,7 @@ class TreadmillViewModelTest {
         val session = TreadmillSession(transport, MockAssociationAdapter(), backgroundScope, testScheduler.timeSource)
         val workouts = recorderFor(session)
         val relay = relayFor(session, workouts)
+        startAll(session, workouts, relay)
         val first = TreadmillViewModel(session, workouts, relay, shareFor(workouts)).also { store.put("first", it) }
         first.connect()
         advanceTimeBy(600)

@@ -161,5 +161,10 @@ private const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
 fun AppAndroidPreview() {
     val session = TreadmillSession(MockTransportAdapter(), MockAssociationAdapter())
     val workouts = WorkoutRecorder(session, MockHealthSyncAdapter(), InMemoryKeyValueStore())
-    App(session = session, workouts = workouts, relay = WatchRelay(session, workouts, MockWatchCompanionAdapter()))
+    val relay = WatchRelay(session, workouts, MockWatchCompanionAdapter())
+    // In dependency order, as the app does.
+    session.start()
+    workouts.start()
+    relay.start()
+    App(session = session, workouts = workouts, relay = relay)
 }

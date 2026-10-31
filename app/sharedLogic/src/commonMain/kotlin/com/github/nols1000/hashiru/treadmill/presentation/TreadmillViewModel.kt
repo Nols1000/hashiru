@@ -184,7 +184,10 @@ data class HealthUi(
     val showInstallCard: Boolean = false,
 )
 
-/** Presents a [TreadmillSession]. The session outlives this ViewModel, so clearing it leaves the connection up. */
+/**
+ * Presents a [TreadmillSession]. The session outlives this ViewModel, so clearing it leaves the connection up;
+ * it and the components beside it are started by whoever built them.
+ */
 class TreadmillViewModel(
     private val session: TreadmillSession,
     private val workouts: WorkoutRecorder,
@@ -250,8 +253,6 @@ class TreadmillViewModel(
         }.stateIn(viewModelScope, SharingStarted.Eagerly, TreadmillUiState())
 
     init {
-        session.start()
-        relay.start()
         viewModelScope.launch {
             session.telemetry.collect {
                 val tenths = (it.speedKmh * 10).roundToInt()
