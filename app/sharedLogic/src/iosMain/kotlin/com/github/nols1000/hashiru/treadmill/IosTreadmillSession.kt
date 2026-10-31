@@ -9,8 +9,9 @@ import com.github.nols1000.hashiru.course.port.CourseLibraryPort
 import com.github.nols1000.hashiru.course.presentation.CourseLibraryViewModel
 import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.share.adapter.IosBattery
-import com.github.nols1000.hashiru.share.adapter.IosShareRelayAdapter
+import com.github.nols1000.hashiru.share.adapter.HttpShareRelay
 import com.github.nols1000.hashiru.share.adapter.MockShareRelayAdapter
+import com.github.nols1000.hashiru.share.adapter.UrlSessionTransport
 import com.github.nols1000.hashiru.share.engine.LiveShareEngine
 import com.github.nols1000.hashiru.share.port.ShareCipherPort
 import com.github.nols1000.hashiru.toByteArray
@@ -27,7 +28,10 @@ import com.github.nols1000.hashiru.workout.port.KeyValueStorePort
 import com.github.nols1000.hashiru.workout.port.WorkoutHistoryPort
 import com.github.nols1000.hashiru.workout.presentation.HistoryViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -90,7 +94,12 @@ fun createIosApp(
     val courses = FileCourseLibrary()
     val workouts = WorkoutRecorder(session, health, storage, courses)
     val relay = WatchRelay(session, workouts, if (simulated) MockWatchCompanionAdapter() else IosWatchConnectivityAdapter())
-    val shareRelay = if (relayUrl == null) MockShareRelayAdapter() else IosShareRelayAdapter(relayUrl)
+    // The relay's bookkeeping runs on the main thread, as the engine does; requests travel on URLSession's queues.
+    val shareRelay = if (relayUrl == null) {
+        MockShareRelayAdapter()
+    } else {
+        HttpShareRelay(relayUrl, UrlSessionTransport(), CoroutineScope(SupervisorJob() + Dispatchers.Main))
+    }
     val share = LiveShareEngine(workouts, shareRelay, shareCipher, IosBattery(), storage, viewerUrl)
     // Each starts after what it listens to, and each listens before it sends, so no answer is missed.
     session.start()
