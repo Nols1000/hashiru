@@ -5,7 +5,7 @@ import SharedLogic
 /// walk runs on the WalkingPad when one is attached, and on the iPhone's own sensors otherwise; outdoor workouts
 /// always run on the iPhone (or the watch), with GPS for the route.
 struct WorkoutTabView: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let history: HistoryUiState
     let actions: TreadmillActions
     var courses: [Course] = []
@@ -94,14 +94,14 @@ struct WorkoutTabView: View {
             }
             .safeAreaInset(edge: .top) {
                 // Blocking errors show in the Indoor Walk tile while disconnected; everything else is a banner here.
-                if let error = state.errorPresentation, !state.workout.isInProgress, !error.blocking || state.isConnected {
+                if let error = state.treadmill.errorPresentation, !state.workout.isInProgress, !error.blocking || state.treadmill.isConnected {
                     ErrorBanner(message: error.title, onDismiss: actions.dismissError)
                         .padding(.horizontal)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .animation(.snappy, value: state.errorPresentation)
-            .animation(.snappy, value: state.isConnected)
+            .animation(.snappy, value: state.treadmill.errorPresentation)
+            .animation(.snappy, value: state.treadmill.isConnected)
         }
     }
 
@@ -166,7 +166,7 @@ extension WorkoutKind {
 /// A tile like those in Fitness: the glyph and play button, the title, and chips for what goes with it.
 private struct WorkoutTileView: View {
     let tile: WorkoutTile
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let actions: TreadmillActions
     let onPlay: () -> Void
     let onShowDevices: () -> Void
@@ -179,11 +179,11 @@ private struct WorkoutTileView: View {
     @Environment(\.openURL) private var openURL
 
     private var kind: WorkoutKind { tile.kind }
-    private var usesPad: Bool { kind.takesPad && state.isConnected }
+    private var usesPad: Bool { kind.takesPad && state.treadmill.isConnected }
 
     /// A blocking error while disconnected shows in the tile, with its fix.
     private var blockingError: ErrorPresentation? {
-        guard kind.takesPad, let error = state.errorPresentation, error.blocking, !state.isConnected, !state.isConnecting else { return nil }
+        guard kind.takesPad, let error = state.treadmill.errorPresentation, error.blocking, !state.treadmill.isConnected, !state.treadmill.isConnecting else { return nil }
         return error
     }
 
@@ -221,7 +221,7 @@ private struct WorkoutTileView: View {
             if tile.available {
                 HStack(spacing: 10) {
                     if kind.takesPad {
-                        TileChip(title: padChipTitle, systemImage: "figure.walk.treadmill", highlighted: state.isConnected, action: onShowDevices)
+                        TileChip(title: padChipTitle, systemImage: "figure.walk.treadmill", highlighted: state.treadmill.isConnected, action: onShowDevices)
                     }
                     if kind.outdoor {
                         routeChip
@@ -267,8 +267,8 @@ private struct WorkoutTileView: View {
     }
 
     private var padChipTitle: LocalizedStringKey {
-        if state.isConnected { return "WalkingPad" }
-        if state.isConnecting { return "Connecting…" }
+        if state.treadmill.isConnected { return "WalkingPad" }
+        if state.treadmill.isConnecting { return "Connecting…" }
         return "Attach WalkingPad"
     }
 
@@ -333,7 +333,7 @@ private struct TileChipLabel: View {
 /// A blocking WalkingPad error: its icon, title, text and the button that fixes it.
 private struct BlockingErrorRow: View {
     let error: ErrorPresentation
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let actions: TreadmillActions
 
     @Environment(\.openURL) private var openURL
@@ -379,7 +379,7 @@ private struct BlockingErrorRow: View {
         case .openSettings:
             actions.dismissError()
             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
-        default: state.canPair && !state.isPaired ? actions.pair() : actions.connect()
+        default: state.treadmill.canPair && !state.treadmill.isPaired ? actions.pair() : actions.connect()
         }
     }
 }

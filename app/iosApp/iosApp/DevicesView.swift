@@ -4,7 +4,7 @@ import SharedLogic
 /// The toolbar button for what is connected, like the one on Fitness's Workout tab: the WalkingPad and the
 /// watch light up while they are there.
 struct ConnectedDevicesButton: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let action: () -> Void
 
     private var watchReachable: Bool { state.workout.companion == .reachable }
@@ -12,11 +12,11 @@ struct ConnectedDevicesButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                if state.isConnecting {
+                if state.treadmill.isConnecting {
                     ProgressView()
                 } else {
-                    Image(systemName: state.isConnected ? "figure.walk.treadmill" : "antenna.radiowaves.left.and.right")
-                        .foregroundStyle(state.isConnected ? Color.workoutVolt : .primary)
+                    Image(systemName: state.treadmill.isConnected ? "figure.walk.treadmill" : "antenna.radiowaves.left.and.right")
+                        .foregroundStyle(state.treadmill.isConnected ? Color.workoutVolt : .primary)
                 }
                 if watchReachable {
                     Image(systemName: "applewatch")
@@ -29,33 +29,33 @@ struct ConnectedDevicesButton: View {
     }
 
     private var accessibilityValue: LocalizedStringKey {
-        switch (state.isConnected, watchReachable) {
+        switch (state.treadmill.isConnected, watchReachable) {
         case (true, true): "WalkingPad and Apple Watch"
         case (true, false): "WalkingPad"
         case (false, true): "Apple Watch"
-        default: state.isConnecting ? "Connecting…" : "None"
+        default: state.treadmill.isConnecting ? "Connecting…" : "None"
         }
     }
 }
 
 /// The WalkingPad and the watch, with what can be done about each.
 struct ConnectedDevicesSheet: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let actions: TreadmillActions
 
     @State private var confirmingForget = false
     @Environment(\.dismiss) private var dismiss
 
-    private var needsPairing: Bool { state.canPair && !state.isPaired }
+    private var needsPairing: Bool { state.treadmill.canPair && !state.treadmill.isPaired }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    DeviceRow(title: "WalkingPad", systemImage: "figure.walk.treadmill", status: padStatus, ok: state.isConnected)
-                    if state.isConnected {
+                    DeviceRow(title: "WalkingPad", systemImage: "figure.walk.treadmill", status: padStatus, ok: state.treadmill.isConnected)
+                    if state.treadmill.isConnected {
                         Button("Disconnect", systemImage: "xmark.circle", action: actions.disconnect)
-                    } else if state.isConnecting {
+                    } else if state.treadmill.isConnecting {
                         // A connection to the paired pad waits until it is in range, so it has to be possible to stop.
                         Button("Stop Connecting", systemImage: "xmark.circle", action: actions.disconnect)
                     } else {
@@ -63,7 +63,7 @@ struct ConnectedDevicesSheet: View {
                             Label(needsPairing ? "Pair WalkingPad" : "Connect", systemImage: "link")
                         }
                     }
-                    if state.isPaired {
+                    if state.treadmill.isPaired {
                         Button("Forget WalkingPad", systemImage: "trash", role: .destructive) { confirmingForget = true }
                     }
                     #if DEBUG
@@ -98,9 +98,9 @@ struct ConnectedDevicesSheet: View {
     }
 
     private var padStatus: LocalizedStringKey {
-        if state.isConnected { return state.isRunning ? "Belt Running" : "Connected" }
-        if state.isConnecting { return "Connecting…" }
-        return state.isPaired ? "Not Connected" : "Not Paired"
+        if state.treadmill.isConnected { return state.treadmill.isRunning ? "Belt Running" : "Connected" }
+        if state.treadmill.isConnecting { return "Connecting…" }
+        return state.treadmill.isPaired ? "Not Connected" : "Not Paired"
     }
 
     private var watchStatus: LocalizedStringKey {

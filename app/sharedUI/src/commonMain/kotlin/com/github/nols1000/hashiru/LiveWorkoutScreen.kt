@@ -109,7 +109,7 @@ import com.github.nols1000.hashiru.theme.zoneColor
 import com.github.nols1000.hashiru.companion.domain.CompanionState
 import com.github.nols1000.hashiru.workout.domain.HeartRateZone
 import com.github.nols1000.hashiru.treadmill.presentation.TreadmillUiState
-import com.github.nols1000.hashiru.treadmill.presentation.WorkoutUiState
+import com.github.nols1000.hashiru.workout.presentation.WorkoutUiState
 import com.github.nols1000.hashiru.workout.domain.PauseReason
 import com.github.nols1000.hashiru.workout.engine.WorkoutPhase
 import kotlinx.coroutines.delay
@@ -124,8 +124,12 @@ private const val HOLD_TO_END_MS = 900
  * large controls at the bottom. Ending takes a press and hold so a stray tap never ends a walk.
  */
 @Composable
-internal fun LiveWorkoutScreen(state: TreadmillUiState, actions: TreadmillActions, snackbarHostState: SnackbarHostState) {
-    val workout = state.workout
+internal fun LiveWorkoutScreen(
+    state: TreadmillUiState,
+    workout: WorkoutUiState,
+    actions: TreadmillActions,
+    snackbarHostState: SnackbarHostState,
+) {
     LightSystemBarIcons()
     WorkoutTheme {
         Scaffold(
@@ -146,7 +150,7 @@ internal fun LiveWorkoutScreen(state: TreadmillUiState, actions: TreadmillAction
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     WorkoutStatusChip(workout)
-                    WalkBanners(state, actions)
+                    WalkBanners(state, workout, actions)
                     Spacer(Modifier.weight(1f))
                     DurationHero(workout)
                     Spacer(Modifier.height(32.dp))
@@ -173,8 +177,8 @@ internal fun LiveWorkoutScreen(state: TreadmillUiState, actions: TreadmillAction
  * waved away; it comes back the next time the connection is lost.
  */
 @Composable
-private fun WalkBanners(state: TreadmillUiState, actions: TreadmillActions) {
-    var lostDismissed by rememberSaveable(state.workout.connectionLost) { mutableStateOf(false) }
+private fun WalkBanners(state: TreadmillUiState, workout: WorkoutUiState, actions: TreadmillActions) {
+    var lostDismissed by rememberSaveable(workout.connectionLost) { mutableStateOf(false) }
     when {
         state.error?.isFailedStop == true -> {
             Spacer(Modifier.height(16.dp))
@@ -190,7 +194,7 @@ private fun WalkBanners(state: TreadmillUiState, actions: TreadmillActions) {
                 onSecondary = actions.dismissError,
             )
         }
-        state.workout.connectionLost && !lostDismissed -> {
+        workout.connectionLost && !lostDismissed -> {
             Spacer(Modifier.height(16.dp))
             WalkBanner(
                 icon = Res.drawable.ic_link_off,

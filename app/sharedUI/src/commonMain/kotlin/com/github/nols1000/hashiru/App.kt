@@ -91,12 +91,13 @@ import com.github.nols1000.hashiru.theme.HashiruTheme
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillCommand
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillError
 import com.github.nols1000.hashiru.treadmill.engine.TreadmillSession
-import com.github.nols1000.hashiru.treadmill.presentation.HealthUi
-import com.github.nols1000.hashiru.treadmill.presentation.SyncUi
 import com.github.nols1000.hashiru.treadmill.presentation.TreadmillUiState
 import com.github.nols1000.hashiru.treadmill.presentation.TreadmillViewModel
-import com.github.nols1000.hashiru.treadmill.presentation.WorkoutSummaryUi
-import com.github.nols1000.hashiru.treadmill.presentation.WorkoutUiState
+import com.github.nols1000.hashiru.workout.presentation.HealthUi
+import com.github.nols1000.hashiru.workout.presentation.SyncUi
+import com.github.nols1000.hashiru.workout.presentation.WorkoutSummaryUi
+import com.github.nols1000.hashiru.workout.presentation.WorkoutUiState
+import com.github.nols1000.hashiru.workout.presentation.WorkoutViewModel
 import com.github.nols1000.hashiru.workout.domain.PauseReason
 import com.github.nols1000.hashiru.workout.engine.WorkoutPhase
 import com.github.nols1000.hashiru.companion.engine.WatchRelay
@@ -156,35 +157,37 @@ class PlatformActions(
 
 @Composable
 fun App(session: TreadmillSession, workouts: WorkoutRecorder, relay: WatchRelay, platform: PlatformActions = PlatformActions()) {
-    val viewModel = viewModel { TreadmillViewModel(session, workouts, relay) }
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LifecycleResumeEffect(viewModel) {
-        viewModel.onForeground()
+    val treadmill = viewModel { TreadmillViewModel(session) }
+    val workout = viewModel { WorkoutViewModel(session.connectionState, workouts, relay) }
+    val treadmillState by treadmill.uiState.collectAsStateWithLifecycle()
+    val workoutState by workout.uiState.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(workout) {
+        workout.onForeground()
         onPauseOrDispose {}
     }
-    val actions = remember(viewModel, platform) {
+    val actions = remember(treadmill, workout, platform) {
         TreadmillActions(
-            connect = viewModel::connect,
-            pair = viewModel::pair,
-            forget = viewModel::forget,
-            disconnect = viewModel::disconnect,
-            toggleBelt = viewModel::toggleBelt,
-            stopBelt = viewModel::stopBelt,
-            increaseSpeed = viewModel::increaseSpeed,
-            decreaseSpeed = viewModel::decreaseSpeed,
-            dismissError = viewModel::dismissError,
-            pauseWorkout = viewModel::pauseWorkout,
-            resumeWorkout = viewModel::resumeWorkout,
-            endWorkout = viewModel::endWorkout,
-            dismissSummary = viewModel::dismissSummary,
-            deleteSummary = viewModel::deleteSummary,
-            connectHealth = viewModel::connectHealth,
-            dismissHealthCard = viewModel::dismissHealthCard,
-            dismissWatchTip = viewModel::dismissWatchTip,
-            dismissTooShort = viewModel::dismissTooShort,
-            retrySync = viewModel::retrySync,
-            setWeight = viewModel::setWeight,
-            setProfile = viewModel::setProfile,
+            connect = treadmill::connect,
+            pair = treadmill::pair,
+            forget = treadmill::forget,
+            disconnect = treadmill::disconnect,
+            toggleBelt = treadmill::toggleBelt,
+            stopBelt = treadmill::stopBelt,
+            increaseSpeed = treadmill::increaseSpeed,
+            decreaseSpeed = treadmill::decreaseSpeed,
+            dismissError = treadmill::dismissError,
+            pauseWorkout = workout::pauseWorkout,
+            resumeWorkout = workout::resumeWorkout,
+            endWorkout = workout::endWorkout,
+            dismissSummary = workout::dismissSummary,
+            deleteSummary = workout::deleteSummary,
+            connectHealth = workout::connectHealth,
+            dismissHealthCard = workout::dismissHealthCard,
+            dismissWatchTip = workout::dismissWatchTip,
+            dismissTooShort = workout::dismissTooShort,
+            retrySync = workout::retrySync,
+            setWeight = workout::setWeight,
+            setProfile = workout::setProfile,
             openHealthSettings = platform.openHealthSettings,
             enableBluetooth = platform.enableBluetooth,
             openAppSettings = platform.openAppSettings,
@@ -193,7 +196,7 @@ fun App(session: TreadmillSession, workouts: WorkoutRecorder, relay: WatchRelay,
         )
     }
     HashiruTheme {
-        TreadmillScreen(state, actions)
+        TreadmillScreen(treadmillState, workoutState, actions)
     }
 }
 
@@ -202,15 +205,15 @@ fun App(session: TreadmillSession, workouts: WorkoutRecorder, relay: WatchRelay,
  * is being restored, and the summary of a finished walk slides up over whatever is below.
  */
 @Composable
-fun TreadmillScreen(state: TreadmillUiState, actions: TreadmillActions) {
+fun TreadmillScreen(state: TreadmillUiState, workout: WorkoutUiState, actions: TreadmillActions) {
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
     // Blocking errors take over the connect screen and a failed stop gets a banner during a walk; the rest is a snackbar.
     val snackbarError = state.error?.takeIf {
         when {
-            it.isFailedStop -> !state.workout.isInProgress
+            it.isFailedStop -> !workout.isInProgress
             it is TreadmillError.CommandFailed -> true
-            else -> state.isConnected || state.workout.isInProgress
+            else -> state.isConnected || workout.isInProgress
         }
     }
     LaunchedEffect(snackbarError) {
@@ -227,8 +230,8 @@ fun TreadmillScreen(state: TreadmillUiState, actions: TreadmillActions) {
     var editingWeight by rememberSaveable { mutableStateOf(false) }
     var editingProfile by rememberSaveable { mutableStateOf(false) }
 
-    if (state.workout.isInProgress) {
-        LiveWorkoutScreen(state, actions, snackbarHostState)
+    if (workout.isInProgress) {
+        LiveWorkoutScreen(state, workout, actions, snackbarHostState)
     } else {
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
             // Fill the viewport so weighted spacers work, but scroll when large font scales overflow it.
@@ -246,7 +249,7 @@ fun TreadmillScreen(state: TreadmillUiState, actions: TreadmillActions) {
                 ) {
                     ConnectionStatus(state)
                     if (state.isConnected) {
-                        ReadyContent(state, actions, onEditWeight = { editingWeight = true }, onEditProfile = { editingProfile = true })
+                        ReadyContent(state, workout, actions, onEditWeight = { editingWeight = true }, onEditProfile = { editingProfile = true })
                     } else {
                         NotConnectedContent(state, actions)
                     }
@@ -255,12 +258,12 @@ fun TreadmillScreen(state: TreadmillUiState, actions: TreadmillActions) {
         }
     }
 
-    state.workout.summary?.let { summary ->
-        WorkoutSummarySheet(summary, state.workout.health, actions, onEditWeight = { editingWeight = true })
+    workout.summary?.let { summary ->
+        WorkoutSummarySheet(summary, workout.health, actions, onEditWeight = { editingWeight = true })
     }
     if (editingWeight) {
         WeightDialog(
-            initialKg = state.workout.manualWeightKg,
+            initialKg = workout.manualWeightKg,
             onDismiss = { editingWeight = false },
             onSave = {
                 actions.setWeight(it)
@@ -270,8 +273,8 @@ fun TreadmillScreen(state: TreadmillUiState, actions: TreadmillActions) {
     }
     if (editingProfile) {
         ProfileDialog(
-            initialBirthYear = state.workout.manualBirthYear,
-            initialSex = state.workout.manualSex,
+            initialBirthYear = workout.manualBirthYear,
+            initialSex = workout.manualSex,
             onDismiss = { editingProfile = false },
             onSave = { year, sex ->
                 actions.setProfile(year, sex)
@@ -510,9 +513,9 @@ internal fun BeltButton(isRunning: Boolean, onToggleBelt: () -> Unit) {
 }
 
 @Composable
-private fun PreviewScreen(state: TreadmillUiState, darkTheme: Boolean = false) {
+private fun PreviewScreen(state: TreadmillUiState, workout: WorkoutUiState = WorkoutUiState(), darkTheme: Boolean = false) {
     HashiruTheme(darkTheme = darkTheme, dynamicColor = false) {
-        TreadmillScreen(state, TreadmillActions())
+        TreadmillScreen(state, workout, TreadmillActions())
     }
 }
 
@@ -532,7 +535,6 @@ private val runningPreviewState = TreadmillUiState(
     elapsedSeconds = 1_254,
     distanceMeters = 1_220,
     steps = 1_742,
-    workout = walkingPreview,
 )
 
 private val summaryPreview = WorkoutSummaryUi(
@@ -551,31 +553,27 @@ private val summaryPreview = WorkoutSummaryUi(
 
 @Preview
 @Composable
-fun TreadmillScreenWalkingPreview() = PreviewScreen(runningPreviewState)
+fun TreadmillScreenWalkingPreview() = PreviewScreen(runningPreviewState, walkingPreview)
 
 @Preview
 @Composable
 fun TreadmillScreenPausedPreview() = PreviewScreen(
-    runningPreviewState.copy(
-        isRunning = false,
-        speedKmh = 0.0,
-        workout = walkingPreview.copy(phase = WorkoutPhase.Paused, pauseReason = PauseReason.BeltStopped, pausedSeconds = 42),
-    ),
+    runningPreviewState.copy(isRunning = false, speedKmh = 0.0),
+    walkingPreview.copy(phase = WorkoutPhase.Paused, pauseReason = PauseReason.BeltStopped, pausedSeconds = 42),
 )
 
 @Preview
 @Composable
 fun TreadmillScreenReconnectingPreview() = PreviewScreen(
-    TreadmillUiState(
-        isConnecting = true,
-        workout = walkingPreview.copy(phase = WorkoutPhase.Paused, pauseReason = PauseReason.Disconnected, pausedSeconds = 12),
-    ),
+    TreadmillUiState(isConnecting = true),
+    walkingPreview.copy(phase = WorkoutPhase.Paused, pauseReason = PauseReason.Disconnected, pausedSeconds = 12),
 )
 
 @Preview
 @Composable
 fun TreadmillScreenReadyPreview() = PreviewScreen(
-    TreadmillUiState(isConnected = true, isPaired = true, workout = WorkoutUiState(health = HealthUi(available = true, showConnectCard = true))),
+    TreadmillUiState(isConnected = true, isPaired = true),
+    WorkoutUiState(health = HealthUi(available = true, showConnectCard = true)),
 )
 
 @Preview
@@ -585,10 +583,8 @@ fun TreadmillScreenReadyDarkPreview() = PreviewScreen(TreadmillUiState(isConnect
 @Preview
 @Composable
 fun TreadmillScreenSummaryPreview() = PreviewScreen(
-    TreadmillUiState(
-        isConnected = true,
-        workout = WorkoutUiState(summary = summaryPreview, health = HealthUi(available = true, showPriorityTip = true)),
-    ),
+    TreadmillUiState(isConnected = true),
+    WorkoutUiState(summary = summaryPreview, health = HealthUi(available = true, showPriorityTip = true)),
 )
 
 @Preview
@@ -623,35 +619,28 @@ fun TreadmillScreenNotAWalkingPadPreview() = PreviewScreen(TreadmillUiState(isPa
 @Preview
 @Composable
 fun TreadmillScreenConnectionLostPreview() = PreviewScreen(
-    TreadmillUiState(
-        isConnecting = true,
-        workout = walkingPreview.copy(phase = WorkoutPhase.Paused, pauseReason = PauseReason.Disconnected, pausedSeconds = 45),
-    ),
+    TreadmillUiState(isConnecting = true),
+    walkingPreview.copy(phase = WorkoutPhase.Paused, pauseReason = PauseReason.Disconnected, pausedSeconds = 45),
 )
 
 @Preview
 @Composable
 fun TreadmillScreenStopFailedPreview() =
-    PreviewScreen(runningPreviewState.copy(error = TreadmillError.CommandFailed(TreadmillCommand.StopBelt)))
+    PreviewScreen(runningPreviewState.copy(error = TreadmillError.CommandFailed(TreadmillCommand.StopBelt)), walkingPreview)
 
 @Preview
 @Composable
 fun TreadmillScreenReadyNoticesPreview() = PreviewScreen(
-    TreadmillUiState(
-        isConnected = true,
-        isPaired = true,
-        workout = WorkoutUiState(tooShort = true, showWatchTip = true, health = HealthUi(available = true, accessDenied = true)),
-    ),
+    TreadmillUiState(isConnected = true, isPaired = true),
+    WorkoutUiState(tooShort = true, showWatchTip = true, health = HealthUi(available = true, accessDenied = true)),
 )
 
 @Preview
 @Composable
 fun TreadmillScreenSyncFailedPreview() = PreviewScreen(
-    TreadmillUiState(
-        isConnected = true,
-        workout = WorkoutUiState(
-            summary = summaryPreview.copy(sync = SyncUi.Failed, syncMessage = "HealthConnectException: Rate limited"),
-            health = HealthUi(available = true),
-        ),
+    TreadmillUiState(isConnected = true),
+    WorkoutUiState(
+        summary = summaryPreview.copy(sync = SyncUi.Failed, syncMessage = "HealthConnectException: Rate limited"),
+        health = HealthUi(available = true),
     ),
 )

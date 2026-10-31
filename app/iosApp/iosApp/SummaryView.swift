@@ -5,7 +5,7 @@ import SharedLogic
 /// The home page, like Summary in Fitness: this week against the goal, its totals, recent sessions and trends,
 /// all read from Apple Health.
 struct SummaryView: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let history: HistoryUiState
     let actions: TreadmillActions
     let historyActions: HistoryActions

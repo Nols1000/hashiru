@@ -1,54 +1,72 @@
 import SwiftUI
 import SharedLogic
 
+/// What the treadmill and workout screens show, from the three presenters behind them.
+struct TreadmillScreenState {
+    var treadmill: TreadmillUiState
+    var workout: WorkoutUiState
+    var share: ShareUi
+}
+
+/// Owns the treadmill's, the workout's and the share's presenters and publishes their states together.
 @MainActor
 final class TreadmillModel: ObservableObject {
-    @Published private(set) var state = TreadmillViewModelKt.initialTreadmillUiState()
+    @Published private(set) var state = TreadmillScreenState(
+        treadmill: TreadmillViewModelKt.initialTreadmillUiState(),
+        workout: WorkoutViewModelKt.initialWorkoutUiState(),
+        share: ShareViewModelKt.initialShareUi()
+    )
 
-    private let viewModel: TreadmillViewModel
-    private var subscription: (any KotlinAutoCloseable)?
+    private let treadmill: TreadmillViewModel
+    private let workout: WorkoutViewModel
+    private let share: ShareViewModel
+    private var subscriptions: [any KotlinAutoCloseable] = []
 
     /// The session and recorder outlive this model, so the connection and the walk go on when the view goes away.
     init(app: IosApp) {
-        viewModel = TreadmillViewModel(session: app.session, workouts: app.workouts, relay: app.relay, share: app.share)
-        subscription = viewModel.watch { [weak self] state in
-            self?.state = state
-        }
+        treadmill = TreadmillViewModel(session: app.session)
+        workout = WorkoutViewModel(connection: app.session.connectionState, workouts: app.workouts, relay: app.relay)
+        share = ShareViewModel(share: app.share)
+        subscriptions = [
+            treadmill.watch { [weak self] state in self?.state.treadmill = state },
+            workout.watch { [weak self] state in self?.state.workout = state },
+            share.watch { [weak self] state in self?.state.share = state },
+        ]
     }
 
     deinit {
-        subscription?.close()
+        subscriptions.forEach { $0.close() }
     }
 
-    func connect() { viewModel.connect() }
-    func pair() { viewModel.pair() }
-    func forget() { viewModel.forget() }
-    func disconnect() { viewModel.disconnect() }
-    func toggleBelt() { viewModel.toggleBelt() }
-    func stopBelt() { viewModel.stopBelt() }
-    func increaseSpeed() { viewModel.increaseSpeed() }
-    func decreaseSpeed() { viewModel.decreaseSpeed() }
-    func dismissError() { viewModel.dismissError() }
-    func startWorkout(_ kind: WorkoutKind, _ course: Course?) { viewModel.startWorkout(kind: kind, courseId: course?.id) }
-    func dismissStartRejected() { viewModel.dismissStartRejected() }
-    func pauseWorkout() { viewModel.pauseWorkout() }
-    func resumeWorkout() { viewModel.resumeWorkout() }
-    func endWorkout() { viewModel.endWorkout() }
-    func dismissSummary() { viewModel.dismissSummary() }
-    func deleteSummary() { viewModel.deleteSummary() }
-    func connectHealth() { viewModel.connectHealth() }
-    func dismissHealthCard() { viewModel.dismissHealthCard() }
-    func dismissWatchTip() { viewModel.dismissWatchTip() }
-    func dismissTooShort() { viewModel.dismissTooShort() }
-    func retrySync() { viewModel.retrySync() }
-    func setWeight(_ kg: Double?) { viewModel.setWeight(kg: kg.map { KotlinDouble(value: $0) }) }
+    func connect() { treadmill.connect() }
+    func pair() { treadmill.pair() }
+    func forget() { treadmill.forget() }
+    func disconnect() { treadmill.disconnect() }
+    func toggleBelt() { treadmill.toggleBelt() }
+    func stopBelt() { treadmill.stopBelt() }
+    func increaseSpeed() { treadmill.increaseSpeed() }
+    func decreaseSpeed() { treadmill.decreaseSpeed() }
+    func dismissError() { treadmill.dismissError() }
+    func startWorkout(_ kind: WorkoutKind, _ course: Course?) { workout.startWorkout(kind: kind, courseId: course?.id) }
+    func dismissStartRejected() { workout.dismissStartRejected() }
+    func pauseWorkout() { workout.pauseWorkout() }
+    func resumeWorkout() { workout.resumeWorkout() }
+    func endWorkout() { workout.endWorkout() }
+    func dismissSummary() { workout.dismissSummary() }
+    func deleteSummary() { workout.deleteSummary() }
+    func connectHealth() { workout.connectHealth() }
+    func dismissHealthCard() { workout.dismissHealthCard() }
+    func dismissWatchTip() { workout.dismissWatchTip() }
+    func dismissTooShort() { workout.dismissTooShort() }
+    func retrySync() { workout.retrySync() }
+    func setWeight(_ kg: Double?) { workout.setWeight(kg: kg.map { KotlinDouble(value: $0) }) }
     func setProfile(_ birthYear: Int?, _ sex: Sex?) {
-        viewModel.setProfile(birthYear: birthYear.map { KotlinInt(value: Int32($0)) }, sex: sex)
+        workout.setProfile(birthYear: birthYear.map { KotlinInt(value: Int32($0)) }, sex: sex)
     }
-    func onForeground() { viewModel.onForeground() }
-    func startShare(_ includeHeartRate: Bool) { viewModel.startShare(includeHeartRate: includeHeartRate) }
-    func stopShare() { viewModel.stopShare() }
-    func dismissShareEnded() { viewModel.dismissShareEnded() }
+    func onForeground() { workout.onForeground() }
+    func startShare(_ includeHeartRate: Bool) { share.startShare(includeHeartRate: includeHeartRate) }
+    func stopShare() { share.stopShare() }
+    func dismissShareEnded() { share.dismissShareEnded() }
 }
 
 @MainActor
@@ -227,7 +245,7 @@ struct ContentView: View {
 /// Summary and Workout tabs, like the Fitness app. A workout in progress covers both, whichever started it, and a
 /// finished workout's summary comes up as a sheet.
 struct RootView: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let history: HistoryUiState
     let actions: TreadmillActions
     let historyActions: HistoryActions
@@ -246,7 +264,7 @@ struct RootView: View {
     @State private var startAfterSheet: PreparedWorkout?
 
     init(
-        state: TreadmillUiState, history: HistoryUiState, actions: TreadmillActions, historyActions: HistoryActions,
+        state: TreadmillScreenState, history: HistoryUiState, actions: TreadmillActions, historyActions: HistoryActions,
         courses: [Course] = [], routeActions: RouteActions = RouteActions(),
         imported: Binding<Course?> = .constant(nil), importFailure: Binding<ImportFailure?> = .constant(nil)
     ) {
@@ -320,7 +338,7 @@ struct RootView: View {
             // Keep the display awake while walking, like a workout app.
             UIApplication.shared.isIdleTimerDisabled = walking
         }
-        .onChange(of: state.errorPresentation) { _, error in
+        .onChange(of: state.treadmill.errorPresentation) { _, error in
             if let error { AccessibilityNotification.Announcement(String(localized: error.title)).post() }
         }
     }
@@ -426,11 +444,15 @@ func previewWorkout(
 func previewState(
     connected: Bool = true, connecting: Bool = false, running: Bool = false, paired: Bool = true, error: (any TreadmillError)? = nil,
     workout: WorkoutUiState = previewWorkout()
-) -> TreadmillUiState {
-    TreadmillUiState(
-        isConnected: connected, speedKmh: running ? 3.5 : 0, isRunning: running, isConnecting: connecting,
-        error: error, elapsedSeconds: running ? 1254 : 0, distanceMeters: running ? 1220 : 0, steps: running ? 1742 : 0,
-        isPaired: paired, canPair: true, workout: workout, share: TreadmillViewModelKt.initialTreadmillUiState().share
+) -> TreadmillScreenState {
+    TreadmillScreenState(
+        treadmill: TreadmillUiState(
+            isConnected: connected, speedKmh: running ? 3.5 : 0, isRunning: running, isConnecting: connecting,
+            error: error, elapsedSeconds: running ? 1254 : 0, distanceMeters: running ? 1220 : 0, steps: running ? 1742 : 0,
+            isPaired: paired, canPair: true
+        ),
+        workout: workout,
+        share: ShareViewModelKt.initialShareUi()
     )
 }
 

@@ -74,6 +74,7 @@ import com.github.nols1000.hashiru.resources.weight_row
 import com.github.nols1000.hashiru.resources.weight_title
 import com.github.nols1000.hashiru.resources.weight_value
 import com.github.nols1000.hashiru.treadmill.presentation.TreadmillUiState
+import com.github.nols1000.hashiru.workout.presentation.WorkoutUiState
 import com.github.nols1000.hashiru.workout.domain.Sex
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
@@ -83,11 +84,12 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun ColumnScope.ReadyContent(
     state: TreadmillUiState,
+    workout: WorkoutUiState,
     actions: TreadmillActions,
     onEditWeight: () -> Unit,
     onEditProfile: () -> Unit,
 ) {
-    val health = state.workout.health
+    val health = workout.health
     Spacer(Modifier.weight(1f))
     Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer) {
         Icon(painterResource(Res.drawable.ic_walk), contentDescription = null, modifier = Modifier.padding(24.dp).size(48.dp))
@@ -101,12 +103,12 @@ internal fun ColumnScope.ReadyContent(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
     )
-    if (state.workout.tooShort) {
+    if (workout.tooShort) {
         Spacer(Modifier.height(24.dp))
         NoticeRow(
             icon = Res.drawable.ic_schedule,
             title = stringResource(Res.string.too_short_title),
-            body = stringResource(Res.string.too_short_body, state.workout.minSeconds, state.workout.minMeters),
+            body = stringResource(Res.string.too_short_body, workout.minSeconds, workout.minMeters),
             onDismiss = actions.dismissTooShort,
         )
     }
@@ -133,7 +135,7 @@ internal fun ColumnScope.ReadyContent(
             onAction = actions.openHealthSettings,
         )
     }
-    if (state.workout.showWatchTip && actions.installWatchApp != null) {
+    if (workout.showWatchTip && actions.installWatchApp != null) {
         Spacer(Modifier.height(12.dp))
         NoticeRow(
             icon = Res.drawable.ic_watch,
@@ -145,15 +147,15 @@ internal fun ColumnScope.ReadyContent(
         )
     }
     Spacer(Modifier.weight(1f))
-    val weight = state.workout.manualWeightKg?.let { stringResource(Res.string.weight_value, formatWeight(it)) }
+    val weight = workout.manualWeightKg?.let { stringResource(Res.string.weight_value, formatWeight(it)) }
         ?: stringResource(Res.string.weight_not_set)
     TextButton(onClick = onEditWeight, modifier = Modifier.heightIn(min = 48.dp)) {
         Text(stringResource(Res.string.weight_row, weight))
     }
     // Only asked for what the health store does not provide.
-    if (!state.workout.ageFromHealth || !state.workout.sexFromHealth) {
-        val year = state.workout.manualBirthYear
-        val sex = state.workout.manualSex
+    if (!workout.ageFromHealth || !workout.sexFromHealth) {
+        val year = workout.manualBirthYear
+        val sex = workout.manualSex
         val profile = if (year == null && sex == null) {
             stringResource(Res.string.weight_not_set)
         } else {

@@ -58,7 +58,7 @@ extension HeartRateZone {
 /// up, it lists Pause (on the pad), End Workout, Connected Devices and Lock Controls. Outdoors, a swipe brings up
 /// the map with the route so far.
 struct LiveWorkoutView: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let actions: TreadmillActions
     /// The workout to start from the ready screen.
     let kind: WorkoutKind
@@ -91,7 +91,7 @@ struct LiveWorkoutView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
             }
-            .sensoryFeedback(.error, trigger: state.errorPresentation) { _, error in error != nil }
+            .sensoryFeedback(.error, trigger: state.treadmill.errorPresentation) { _, error in error != nil }
             .sensoryFeedback(.warning, trigger: state.workout.connectionLost) { _, lost in lost }
             // There as long as the cover it sits on, which goes when the workout ends, never by a swipe.
             .sheet(isPresented: .constant(true)) {
@@ -151,12 +151,12 @@ private struct WorkoutSession {
     /// The route followed, if any.
     let course: Course?
 
-    init(state: TreadmillUiState, kind: WorkoutKind, course: Course?) {
+    init(state: TreadmillScreenState, kind: WorkoutKind, course: Course?) {
         let workout = state.workout
         ready = !workout.isInProgress
         self.kind = ready ? kind : workout.kind
         self.course = ready ? course : workout.course
-        onPad = ready ? state.isConnected && kind.takesPad : workout.usesPad
+        onPad = ready ? state.treadmill.isConnected && kind.takesPad : workout.usesPad
         held = ready || workout.phase != .active
     }
 }
@@ -164,12 +164,12 @@ private struct WorkoutSession {
 /// Top left: the WalkingPad, or the walk without one, coloured by how it is doing, with the workout and a word on
 /// its state beside it. The button's menu says what is wrong and offers what to do, in place of a banner.
 private struct WorkoutStatusBar: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let actions: TreadmillActions
     let session: WorkoutSession
 
     private var workout: WorkoutUiState { state.workout }
-    private var error: ErrorPresentation? { state.errorPresentation }
+    private var error: ErrorPresentation? { state.treadmill.errorPresentation }
     private var failedStop: Bool { error?.failedStop == true }
     private var disconnected: Bool { workout.pauseReason == .disconnected }
 
@@ -243,7 +243,7 @@ private struct WorkoutStatusBar: View {
         if let error { return String(localized: error.title) }
         if session.ready { return String(localized: session.onPad ? "Ready on WalkingPad" : "Ready") }
         if workout.phase == .paused { return String(localized: "Paused") }
-        if session.onPad { return String(localized: state.isRunning ? "WalkingPad Running" : "WalkingPad Stopped") }
+        if session.onPad { return String(localized: state.treadmill.isRunning ? "WalkingPad Running" : "WalkingPad Stopped") }
         return String(localized: "Counting with iPhone")
     }
 
@@ -255,7 +255,7 @@ private struct WorkoutStatusBar: View {
         if let error { return error.title }
         if session.ready { return session.onPad ? "Press play to start the belt and the walk." : "Press play to start the workout." }
         if workout.phase == .paused { return "Paused" }
-        return session.onPad ? (state.isRunning ? "WalkingPad running" : "WalkingPad stopped") : "Counting with your iPhone"
+        return session.onPad ? (state.treadmill.isRunning ? "WalkingPad running" : "WalkingPad stopped") : "Counting with your iPhone"
     }
 }
 
@@ -409,7 +409,7 @@ private struct ElapsedTime: View {
 /// The sheet: a list whose first row shows when compact, the pad's speed or else pause. Pulled up, it goes on
 /// with pause (on the pad), End Workout, Connected Devices and Lock Controls.
 private struct WorkoutControlsSheet: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let actions: TreadmillActions
     let session: WorkoutSession
     let onCancel: () -> Void
@@ -437,8 +437,8 @@ private struct WorkoutControlsSheet: View {
         VStack(spacing: 10) {
                 Group {
                     if session.onPad && !session.held {
-                        SheetSpeedControl(state: state, actions: actions)
-                            .disabled(!state.isConnected || locked)
+                        SheetSpeedControl(state: state.treadmill, actions: actions)
+                            .disabled(!state.treadmill.isConnected || locked)
                     } else {
                         // As in Fitness: play or pause, and the time in the middle.
                         HStack {

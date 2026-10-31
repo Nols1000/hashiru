@@ -4,7 +4,7 @@ import SharedLogic
 /// Behind the profile button on Summary, like the account sheet in Fitness: what calories and zones need,
 /// the weekly goal, Apple Health and the WalkingPad.
 struct SettingsView: View {
-    let state: TreadmillUiState
+    let state: TreadmillScreenState
     let history: HistoryUiState
     let actions: TreadmillActions
     let historyActions: HistoryActions
@@ -57,9 +57,9 @@ struct SettingsView: View {
 
                 Section("WalkingPad") {
                     LabeledContent("Status") {
-                        Text(state.isConnected ? "Connected" : state.isConnecting ? "Connecting…" : "Not Connected")
+                        Text(state.treadmill.isConnected ? "Connected" : state.treadmill.isConnecting ? "Connecting…" : "Not Connected")
                     }
-                    if state.isPaired {
+                    if state.treadmill.isPaired {
                         Button("Forget WalkingPad", role: .destructive) { confirmingForget = true }
                     }
                 }

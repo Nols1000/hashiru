@@ -76,9 +76,9 @@ import com.github.nols1000.hashiru.resources.sync_saved
 import com.github.nols1000.hashiru.resources.sync_saving
 import com.github.nols1000.hashiru.resources.sync_unavailable
 import com.github.nols1000.hashiru.resources.sync_waiting
-import com.github.nols1000.hashiru.treadmill.presentation.HealthUi
-import com.github.nols1000.hashiru.treadmill.presentation.SyncUi
-import com.github.nols1000.hashiru.treadmill.presentation.WorkoutSummaryUi
+import com.github.nols1000.hashiru.workout.presentation.HealthUi
+import com.github.nols1000.hashiru.workout.presentation.SyncUi
+import com.github.nols1000.hashiru.workout.presentation.WorkoutSummaryUi
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
