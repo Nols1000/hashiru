@@ -17,16 +17,15 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * [HttpTransport] over an ephemeral URLSession. Its completion handlers run on a queue of the session's; the
- * continuation takes the answer back to the caller's dispatcher, and drops it once the caller gave up.
+ * [HttpTransport] over a URLSession made from [configuration], an ephemeral one unless a test stubs the network.
+ * Its completion handlers run on a queue of the session's; the continuation takes the answer back to the caller's
+ * dispatcher, and drops it once the caller gave up.
  */
 @OptIn(ExperimentalForeignApi::class)
-class UrlSessionTransport : HttpTransport {
-    private val session = NSURLSession.sessionWithConfiguration(
-        NSURLSessionConfiguration.ephemeralSessionConfiguration(),
-        null,
-        null,
-    )
+class UrlSessionTransport(
+    configuration: NSURLSessionConfiguration = NSURLSessionConfiguration.ephemeralSessionConfiguration(),
+) : HttpTransport {
+    private val session = NSURLSession.sessionWithConfiguration(configuration, null, null)
 
     override suspend fun exchange(method: String, url: String, body: ByteArray?, bearerToken: String?): HttpResponse {
         val request = NSMutableURLRequest.requestWithURL(NSURL(string = url))
