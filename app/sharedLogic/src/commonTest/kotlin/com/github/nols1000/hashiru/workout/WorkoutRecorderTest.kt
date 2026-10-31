@@ -243,6 +243,38 @@ class WorkoutRecorderTest {
 
         assertTrue(health.saved.isEmpty())
         assertNull(recorder.status.value.summary)
+
+        // Nor does it come back on the next launch.
+        val (_, relaunched) = recorder()
+        assertNull(relaunched.status.value.summary)
+        assertNull(WorkoutStore(storage).record("walk-1"))
+    }
+
+    @Test
+    fun aWalkTheStoreCouldNotDeleteIsKeptAndSavedAgain() = runTest {
+        val (session, recorder) = recorder()
+        walk(session, 120_000)
+        recorder.end()
+        // The walk ends once the belt reports stopped.
+        advanceTimeBy(3_000)
+        health.failNextDelete = IllegalStateException("Store unavailable")
+
+        recorder.deleteSummary()
+        runCurrent()
+
+        assertNotNull(health.saved["walk-1"])
+        assertEquals(SyncState.Failed("Store unavailable"), recorder.status.value.summary?.syncState)
+        val (_, relaunched) = recorder()
+        assertEquals("walk-1", relaunched.status.value.summary?.id)
+
+        // The retry writes it again in full, in case the store dropped part of it; then it can be deleted.
+        relaunched.retryPendingSync()
+        runCurrent()
+        assertEquals(SyncState.Saved, relaunched.status.value.summary?.syncState)
+        relaunched.deleteSummary()
+        runCurrent()
+        assertTrue(health.saved.isEmpty())
+        assertNull(relaunched.status.value.summary)
     }
 
     @Test

@@ -28,7 +28,7 @@ import kotlin.time.ExperimentalTime
 
 /**
  * Health store kept in memory. Grants access when asked unless [grantOnRequest] is false, and fails the next
- * save with [failNextSave] to exercise the retry path. Phone workouts are tracked unless [rejectPhoneWith] is
+ * save with [failNextSave] to exercise the retry path, and the next delete with [failNextDelete]. Phone workouts are tracked unless [rejectPhoneWith] is
  * set; with a [scope] their counters advance on their own like a brisk walk, and outdoor ones go round a
  * park, otherwise tests feed them with [progress] and [route].
  */
@@ -52,6 +52,7 @@ class MockHealthSyncAdapter(
     val received: List<WorkoutEvent> get() = _received
 
     var failNextSave: Exception? = null
+    var failNextDelete: Exception? = null
     var rejectPhoneWith: RejectReason? = null
 
     private var tracked: String? = null
@@ -171,6 +172,10 @@ class MockHealthSyncAdapter(
     override suspend fun profile(): UserProfile? = profile.takeIf { authorization == HealthAuthorization.Granted }
 
     override suspend fun delete(record: WorkoutRecord) {
+        failNextDelete?.let {
+            failNextDelete = null
+            throw it
+        }
         _saved.remove(record.id)
     }
 

@@ -25,6 +25,7 @@ import com.github.nols1000.hashiru.workout.domain.WorkoutRecord
 import com.github.nols1000.hashiru.workout.domain.WorkoutSource
 import com.github.nols1000.hashiru.workout.port.HealthAuthorization
 import com.github.nols1000.hashiru.workout.port.HealthAvailability
+import com.github.nols1000.hashiru.workout.port.HealthStoreBusyException
 import com.github.nols1000.hashiru.workout.port.HealthSyncPort
 import com.github.nols1000.hashiru.workout.port.KeyValueStorePort
 import com.github.nols1000.hashiru.workout.store.HealthPrompt
@@ -261,13 +262,33 @@ class WorkoutRecorder internal constructor(
         publish()
     }
 
-    /** Removes the last walk from the health store and from this device. */
+    /**
+     * Removes the last walk from the health store and from this device. Should the store fail to delete it, the
+     * walk stays, marked as not saved: the store may still hold all or part of it, so the next retry writes it
+     * again in full, and the user can delete it once more.
+     */
     fun deleteSummary() {
         val record = summary ?: return
         scope.launch {
-            if (record.syncState == SyncState.Saved) report { health.delete(record) }
+            if (record.syncState == SyncState.Saved) {
+                val failed = try {
+                    health.delete(record)
+                    null
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: HealthStoreBusyException) {
+                    SyncState.Busy
+                } catch (e: Exception) {
+                    SyncState.Failed(e.message ?: "Could not delete the workout")
+                }
+                if (failed != null) {
+                    updateSync(record.id, failed)
+                    return@launch
+                }
+            }
+            // Also forgets the summary, so it does not come back on the next launch.
             store.remove(record.id)
-            summary = null
+            if (summary?.id == record.id) summary = null
             publish()
         }
     }
