@@ -11,6 +11,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
@@ -193,6 +194,19 @@ class ShareRelayTest {
         open()
         assertEquals(HttpStatusCode.PayloadTooLarge, publish(1, ByteArray(store.limits.maxFrameBytes + 1)).status)
         assertEquals(HttpStatusCode.NoContent.value / 100, publish(2, ByteArray(store.limits.maxFrameBytes)).status.value / 100)
+    }
+
+    @Test
+    fun aFullRelaySaysSoAndToTryLater() = testApplication {
+        application { module(ShareStore(nowMs = { now }, limits = ShareStore.Limits(maxShares = 1))) }
+        assertEquals(HttpStatusCode.NoContent, open())
+
+        val full = client.put("/api/shares/BBBBBBBBBBBBBBBBBBBBBB") { setBody(token + presence) }
+        assertEquals(HttpStatusCode.ServiceUnavailable, full.status)
+        assertEquals("full", full.bodyAsText())
+        assertEquals("60", full.headers[HttpHeaders.RetryAfter])
+        // The share it holds is still welcome.
+        assertEquals(HttpStatusCode.NoContent, open())
     }
 
     @Test

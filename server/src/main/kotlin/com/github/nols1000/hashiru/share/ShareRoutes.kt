@@ -38,7 +38,9 @@ private val shareId = Regex("[A-Za-z0-9_-]{22}")
  * GET    /api/shares/{id}/stream?nonce=…&proof=…   proof: HMAC-SHA-512(presence key, nonce)
  * ```
  *
- * A relay with no room for another share answers 503, as it does while it restarts: the phone tries again later.
+ * A relay with no room for another share answers 503 with `Retry-After` and the body `full`, which the phone tries
+ * again later like any 503 but tells the walker of. The marker is in the body, which every transport hands back
+ * already; the 503 a proxy answers while the relay restarts carries a page of its own, or nothing.
  */
 fun Route.shareRoutes(store: ShareStore) {
     route("/api/shares/{id}") {
@@ -143,5 +145,13 @@ private suspend fun ApplicationCall.answer(result: ShareStore.Result) = when (re
     ShareStore.Result.NotFound -> respond(HttpStatusCode.NotFound)
     ShareStore.Result.Forbidden -> respond(HttpStatusCode.Forbidden)
     ShareStore.Result.TooLarge -> respond(HttpStatusCode.PayloadTooLarge)
-    ShareStore.Result.Full -> respond(HttpStatusCode.ServiceUnavailable)
+    ShareStore.Result.Full -> {
+        // Room frees up only as shares end or expire, so there is no point asking sooner.
+        response.header(HttpHeaders.RetryAfter, FULL_RETRY_AFTER_S)
+        respondText(FULL_BODY, status = HttpStatusCode.ServiceUnavailable)
+    }
 }
+
+/** The body of the 503 that tells a full relay from one that is restarting. */
+internal const val FULL_BODY = "full"
+private const val FULL_RETRY_AFTER_S = 60

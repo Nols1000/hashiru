@@ -23,9 +23,24 @@ class RelayOutcomeTest {
 
     @Test
     fun anUnavailableRelayIsRetried() {
-        // A redeploy answers 502 or 503 through the proxy for a few seconds; a full relay answers 503.
+        // A redeploy answers 502 or 503 through the proxy for a few seconds.
         for (request in all) for (status in listOf(408, 429, 500, 502, 503, 504, 599)) {
             assertEquals(RelayOutcome.Retry, relayOutcome(request, status), "$status")
+        }
+    }
+
+    @Test
+    fun aFullRelayIsToldApartFromARestartingOne() {
+        for (request in all) {
+            assertEquals(RelayOutcome.Full, relayOutcome(request, 503, "full".encodeToByteArray()))
+            assertEquals(RelayOutcome.Full, relayOutcome(request, 503, "full\n".encodeToByteArray()))
+        }
+        // What a proxy answers while the relay is away, and the marker on any other status, mean only to try again.
+        for (body in listOf("", "Service Unavailable", "<html><body>503 full</body></html>", "no healthy upstream")) {
+            assertEquals(RelayOutcome.Retry, relayOutcome(open, 503, body.encodeToByteArray()), body)
+        }
+        for (status in listOf(429, 500, 502, 504)) {
+            assertEquals(RelayOutcome.Retry, relayOutcome(open, status, "full".encodeToByteArray()), "$status")
         }
     }
 

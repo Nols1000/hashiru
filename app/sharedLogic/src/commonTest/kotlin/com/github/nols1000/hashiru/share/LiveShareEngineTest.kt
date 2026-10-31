@@ -133,6 +133,28 @@ class LiveShareEngineTest {
     }
 
     @Test
+    fun aShareWaitsForRoomOnAFullRelayThenOpens() = runTest {
+        workouts.value = walking(2)
+        val engine = engine()
+        relay.full = true
+        engine.share()
+        runCurrent()
+
+        // The relay answered, so the walker hears it is busy rather than offline, and nothing is sent until it opens.
+        with(assertIs<LiveShareStatus.Live>(engine.status.value)) {
+            assertTrue(waitingForRoom)
+            assertFalse(offline)
+        }
+        assertTrue(publishes.isEmpty())
+
+        workouts.value = walking(4)
+        relay.full = false
+        runCurrent()
+        assertFalse(assertIs<LiveShareStatus.Live>(engine.status.value).waitingForRoom)
+        assertEquals(4, assertIs<ShareMessage.Snapshot>(publishes.single().message()).route.size)
+    }
+
+    @Test
     fun aLongWatchedWalkGetsFreshSnapshotsBeforeTheRelayFillsUp() = runTest {
         workouts.value = walking(2)
         val engine = engine()

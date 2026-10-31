@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 /**
  * HTTP relay client over [transport], sending one request at a time in the order asked. Requests that find no
  * relay are kept and tried again every [RETRY_MS], with [RelayEvent.Unreachable] once until one gets through;
- * waiting for viewers asks the relay every [POLL_MS] in between.
+ * a share the relay has no room for is tried again the same way, with [RelayEvent.Busy] once until it opens.
+ * Waiting for viewers asks the relay every [POLL_MS] in between.
  *
  * All its state belongs to one coroutine in [scope], which takes requests, answers and timers in turn, so
  * [handle] may be called from any thread.
@@ -35,6 +36,9 @@ class HttpShareRelay(
     private val inbox = Channel<Signal>(Channel.UNLIMITED)
     private val pending = mutableListOf<RelayRequest>()
     private val polls = mutableMapOf<String, Poll>()
+
+    /** Shares told [RelayEvent.Busy] and not opened since. */
+    private val busy = mutableSetOf<String>()
     private var inFlight: Call? = null
     private var unreachable = false
     private var retryScheduled = false
@@ -77,6 +81,8 @@ class HttpShareRelay(
                 if (inFlight === call) inFlight = null
             }
             pending.removeAll { it is RelayRequest.AwaitViewers && it.shareId == request.shareId }
+            // A share still waiting for room holds nothing for viewers; what it would have sent can go.
+            if (request.shareId in busy) pending.removeAll { it.shareId == request.shareId }
         }
         pending += request
         drain()
@@ -141,13 +147,22 @@ class HttpShareRelay(
     }
 
     private fun answered(request: RelayRequest, response: HttpResponse?) {
-        val outcome = response?.let { relayOutcome(request, it.status) } ?: RelayOutcome.Retry
+        val outcome = response?.let { relayOutcome(request, it.status, it.body) } ?: RelayOutcome.Retry
         // A relay that is restarting or overloaded is as far away as one behind a dead network.
         if (outcome == RelayOutcome.Retry) {
             onTransportFailure(request)
             return
         }
         signalReachable()
+        if (outcome == RelayOutcome.Full && request !is RelayRequest.Close) {
+            // A share on its way out is not opened again.
+            if (pending.none { it is RelayRequest.Close && it.shareId == request.shareId }) {
+                if (busy.add(request.shareId)) _events.tryEmit(RelayEvent.Busy(request.shareId))
+                retryLater(request)
+                return
+            }
+        }
+        busy -= request.shareId
         if (request !is RelayRequest.Close) {
             when (outcome) {
                 RelayOutcome.Done -> when (request) {
@@ -157,7 +172,7 @@ class HttpShareRelay(
                 }
                 RelayOutcome.Gone -> _events.tryEmit(RelayEvent.Gone(request.shareId))
                 RelayOutcome.Refused -> _events.tryEmit(RelayEvent.Refused(request.shareId))
-                RelayOutcome.Retry -> Unit
+                RelayOutcome.Retry, RelayOutcome.Full -> Unit
             }
         }
         drain()
@@ -169,7 +184,7 @@ class HttpShareRelay(
             return
         }
         // Whatever else the relay answers, the poll stands and asks again: a viewer may yet come.
-        when (response?.let { relayOutcome(poll.request, it.status) } ?: RelayOutcome.Retry) {
+        when (response?.let { relayOutcome(poll.request, it.status, it.body) } ?: RelayOutcome.Retry) {
             RelayOutcome.Done -> {
                 signalReachable()
                 val count = response!!.count()
@@ -188,7 +203,7 @@ class HttpShareRelay(
                 drain()
                 return
             }
-            RelayOutcome.Retry, RelayOutcome.Refused -> Unit
+            RelayOutcome.Retry, RelayOutcome.Full, RelayOutcome.Refused -> Unit
         }
         after(POLL_MS, Signal.PollDue(poll))
         drain()
@@ -199,8 +214,13 @@ class HttpShareRelay(
             drain()
             return
         }
-        pending.add(0, request)
         signalUnreachable()
+        retryLater(request)
+    }
+
+    /** Puts [request] back at the head of the line, to go again after [RETRY_MS]. */
+    private fun retryLater(request: RelayRequest) {
+        pending.add(0, request)
         if (!retryScheduled) {
             retryScheduled = true
             after(RETRY_MS, Signal.RetryDue)

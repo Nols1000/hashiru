@@ -200,7 +200,17 @@ class LiveShareEngine internal constructor(
     private fun onRelayEvent(event: RelayEvent) {
         val active = share ?: return
         when (event) {
-            is RelayEvent.Opened -> if (event.shareId == active.id) publish(active, snapshot = true)
+            is RelayEvent.Opened -> if (event.shareId == active.id) {
+                if (active.waitingForRoom) {
+                    active.waitingForRoom = false
+                    publishStatus()
+                }
+                publish(active, snapshot = true)
+            }
+            is RelayEvent.Busy -> if (event.shareId == active.id) {
+                active.waitingForRoom = true
+                publishStatus()
+            }
             is RelayEvent.Acked -> if (event.shareId == active.id) {
                 active.pending.remove(event.seq)?.let { active.ackedRoute = maxOf(active.ackedRoute, it) }
                 active.pending.keys.removeAll { it < event.seq }
@@ -349,7 +359,7 @@ class LiveShareEngine internal constructor(
 
     private fun publishStatus() {
         val active = share ?: return
-        _status.value = LiveShareStatus.Live(active.link, active.watchers, active.offline, active.includeHeartRate)
+        _status.value = LiveShareStatus.Live(active.link, active.watchers, active.offline, active.includeHeartRate, active.waitingForRoom)
     }
 
     private val ActiveShare.link: String
@@ -399,6 +409,9 @@ class LiveShareEngine internal constructor(
         /** A random key id for this run of the process; see the class comment. */
         val sealer by lazy { SFrameSealer(cipher, baseKey, Random.nextLong(1L shl 31)) }
         var offline = false
+
+        /** The relay has no room to open the share yet; the adapter keeps trying. */
+        var waitingForRoom = false
         var watchers = 0
         /** The adapter is waiting for viewers, as asked by [RelayRequest.AwaitViewers]. */
         var awaiting = false

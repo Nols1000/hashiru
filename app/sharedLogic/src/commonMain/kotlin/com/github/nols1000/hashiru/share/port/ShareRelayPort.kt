@@ -51,6 +51,12 @@ sealed interface RelayEvent {
     data object Unreachable : RelayEvent
     data object Reachable : RelayEvent
 
+    /**
+     * The relay is up but has no room to open the share for now; the adapter keeps trying, and [Opened] follows
+     * once there is.
+     */
+    data class Busy(val shareId: String) : RelayEvent
+
     /** The relay does not know the share, as after it restarted; open it again. */
     data class Gone(val shareId: String) : RelayEvent
 

@@ -67,13 +67,15 @@ sealed interface LiveShareStatus {
 
     /**
      * [link] goes to viewers as it is, including its fragment, which holds the keys. [watchers] counts the pages
-     * open on it; [offline] is true while the relay cannot be reached.
+     * open on it; [offline] is true while the relay cannot be reached, and [waitingForRoom] while it can but has no
+     * room to open the share yet, so viewers cannot open the link until it does.
      */
     data class Live(
         val link: String,
         val watchers: Int,
         val offline: Boolean,
         val includeHeartRate: Boolean,
+        val waitingForRoom: Boolean,
     ) : LiveShareStatus
 
     /** The workout ended; viewers see its summary until the relay forgets the share. */

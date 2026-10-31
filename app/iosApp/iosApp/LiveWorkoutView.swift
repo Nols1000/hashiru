@@ -561,6 +561,10 @@ private struct ShareControls: View {
                     Text("Reconnecting…")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                } else if state.waitingForRoom {
+                    Text("Sharing is busy; trying again…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 shareLink(state.link)
                 SheetButton(title: "Stop Sharing", systemImage: "stop.fill", tint: .red, action: actions.stopShare)

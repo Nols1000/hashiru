@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 
 /**
  * Relay kept in memory, answering at once. It reports [watchers] pages open on every share; set [reachable]
- * to false to have requests fail as without a network, and call [arrive] or [leave] to have a viewer open or
- * close the link. Like a real adapter, it tells of an arrival only while it waits for viewers; otherwise the
+ * to false to have requests fail as without a network, [full] to have it turn new shares away for want of room
+ * until set back, and call [arrive] or [leave] to have a viewer open or close the link. Like a real adapter, it tells of an arrival only while it waits for viewers; otherwise the
  * count shows up in the next ack.
  */
 class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
@@ -35,6 +35,19 @@ class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
             _events.tryEmit(if (value) RelayEvent.Reachable else RelayEvent.Unreachable)
         }
 
+    /** Shares turned away while [full], which open once it is not, as a real adapter keeps trying. */
+    private val waiting = mutableSetOf<String>()
+
+    var full = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) {
+                waiting.forEach { _events.tryEmit(RelayEvent.Opened(it)) }
+                waiting.clear()
+            }
+        }
+
     override fun handle(request: RelayRequest) {
         _requests += request
         // Waiting for viewers outlasts an outage, as a real adapter keeps asking.
@@ -45,7 +58,11 @@ class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
         }
         if (!reachable) return
         when (request) {
-            is RelayRequest.Open -> _events.tryEmit(RelayEvent.Opened(request.shareId))
+            is RelayRequest.Open -> if (full) {
+                if (waiting.add(request.shareId)) _events.tryEmit(RelayEvent.Busy(request.shareId))
+            } else {
+                _events.tryEmit(RelayEvent.Opened(request.shareId))
+            }
             is RelayRequest.Publish -> {
                 val held = frames.getOrPut(request.shareId) { mutableMapOf() }
                 if (request.snapshot) held.keys.removeAll { it < request.seq }
@@ -53,7 +70,10 @@ class MockShareRelayAdapter(var watchers: Int = 0) : ShareRelayPort {
                 _events.tryEmit(RelayEvent.Acked(request.shareId, request.seq, watchers))
             }
             is RelayRequest.AwaitViewers -> Unit
-            is RelayRequest.Close -> closed += request.shareId
+            is RelayRequest.Close -> {
+                waiting -= request.shareId
+                closed += request.shareId
+            }
         }
     }
 

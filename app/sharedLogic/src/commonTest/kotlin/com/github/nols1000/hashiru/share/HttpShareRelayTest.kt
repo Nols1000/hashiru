@@ -126,6 +126,59 @@ class HttpShareRelayTest {
     }
 
     @Test
+    fun aFullRelayIsBusyRatherThanUnreachableAndTriedAgain() = runTest {
+        val relay = relay()
+        relay.handle(open())
+        relay.handle(publish(1, snapshot = true))
+        settle()
+        last.reply(503, "full")
+        settle()
+        assertEquals(listOf<RelayEvent>(RelayEvent.Busy("s")), events)
+
+        // Still full on the next try, which says nothing new; a proxy's 503 in between is an outage.
+        wait(30_000)
+        assertEquals("https://relay.test/api/shares/s", last.url)
+        last.reply(503, "full")
+        settle()
+        wait(30_000)
+        last.reply(503)
+        settle()
+        assertEquals(listOf(RelayEvent.Busy("s"), RelayEvent.Unreachable), events)
+
+        wait(30_000)
+        assertEquals(4, calls.size)
+        assertEquals("https://relay.test/api/shares/s", last.url)
+        last.reply(204)
+        settle()
+        assertEquals(listOf(RelayEvent.Busy("s"), RelayEvent.Unreachable, RelayEvent.Reachable, RelayEvent.Opened("s")), events)
+        assertTrue(last.url.endsWith("/frames/1?snapshot=1"))
+    }
+
+    @Test
+    fun closingAShareWaitingForRoomDropsWhatItWouldHaveSent() = runTest {
+        val relay = relay()
+        relay.handle(open())
+        settle()
+        last.reply(503, "full")
+        settle()
+        // Asking anything sends the opening again at once; closing meanwhile, the share is not opened again.
+        relay.handle(publish(1, snapshot = true))
+        relay.handle(close())
+        settle()
+        assertEquals("https://relay.test/api/shares/s", last.url)
+        assertEquals("PUT", last.method)
+        last.reply(503, "full")
+        settle()
+
+        assertEquals("DELETE", last.method)
+        last.reply(404)
+        settle()
+        wait(60_000)
+        assertEquals(3, calls.size)
+        assertEquals(listOf<RelayEvent>(RelayEvent.Busy("s")), events)
+    }
+
+    @Test
     fun aFailedCloseIsDroppedQuietly() = runTest {
         val relay = relay()
         relay.handle(close())

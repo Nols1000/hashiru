@@ -119,6 +119,7 @@
     <string name="share_heart_rate_shared">Heart rate shared</string>
     <string name="share_heart_rate_not_shared">Heart rate not shared</string>
     <string name="share_reconnecting">Reconnecting…</string>
+    <string name="share_waiting_for_room">Sharing is busy; trying again…</string>
     <string name="action_share_link">Share link</string>
     <string name="action_stop_sharing">Stop sharing</string>
     <string name="share_ended">Sharing ended</string>

@@ -54,6 +54,7 @@ import com.github.nols1000.hashiru.resources.share_no_watchers
 import com.github.nols1000.hashiru.resources.share_reconnecting
 import com.github.nols1000.hashiru.resources.share_unavailable_body
 import com.github.nols1000.hashiru.resources.share_unavailable_title
+import com.github.nols1000.hashiru.resources.share_waiting_for_room
 import com.github.nols1000.hashiru.resources.share_watchers
 import com.github.nols1000.hashiru.share.presentation.ShareUi
 import com.github.nols1000.hashiru.share.presentation.ShareUiPhase
@@ -98,7 +99,11 @@ internal fun ShareControls(share: ShareUi, actions: TreadmillActions) {
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
             ShareNote(if (share.includeHeartRate) Res.string.share_heart_rate_shared else Res.string.share_heart_rate_not_shared)
-            if (share.offline) ShareNote(Res.string.share_reconnecting)
+            if (share.offline) {
+                ShareNote(Res.string.share_reconnecting)
+            } else if (share.waitingForRoom) {
+                ShareNote(Res.string.share_waiting_for_room)
+            }
             Spacer(Modifier.size(4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ShareLinkButton(share.link, actions, Modifier.weight(1f))

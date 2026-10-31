@@ -19,6 +19,8 @@ data class ShareUi(
     val link: String? = null,
     val watchers: Int = 0,
     val offline: Boolean = false,
+    /** The relay is full for now and the share not open yet; it keeps trying. */
+    val waitingForRoom: Boolean = false,
     val includeHeartRate: Boolean = false,
     /** The persisted default for the heart-rate switch in the share dialog. */
     val heartRateByDefault: Boolean = false,
@@ -51,6 +53,7 @@ class ShareViewModel(private val share: LiveShareEngine) : ViewModel() {
             link = link,
             watchers = watchers,
             offline = offline,
+            waitingForRoom = waitingForRoom,
             includeHeartRate = includeHeartRate,
             heartRateByDefault = heartRateByDefault,
         )

@@ -545,6 +545,9 @@
     "Sharing Unavailable" : {
 
     },
+    "Sharing is busy; trying again…" : {
+
+    },
     "Sharing was refused by the server." : {
 
     },

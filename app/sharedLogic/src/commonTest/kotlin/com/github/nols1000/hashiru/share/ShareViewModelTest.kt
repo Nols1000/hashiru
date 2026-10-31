@@ -25,6 +25,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -43,13 +44,14 @@ class ShareViewModelTest {
 
     @Test
     fun shareStatusReachesTheUiState() = runTest(dispatcher) {
+        val relay = MockShareRelayAdapter()
         val session = TreadmillSession(MockTransportAdapter(), MockAssociationAdapter(), backgroundScope, testScheduler.timeSource)
         val workouts = WorkoutRecorder(
             session, MockHealthSyncAdapter(), WorkoutStore(InMemoryKeyValueStore()), backgroundScope, { testScheduler.currentTime }, { "walk" },
         )
         val share = LiveShareEngine(
             workouts.status,
-            MockShareRelayAdapter(),
+            relay,
             FakeShareCipher(),
             { 80 },
             InMemoryKeyValueStore(),
@@ -71,7 +73,23 @@ class ShareViewModelTest {
             assertEquals(ShareUiPhase.Live, phase)
             assertTrue(link?.startsWith("https://share.test/#v1.") == true)
             assertTrue(includeHeartRate)
+            assertFalse(waitingForRoom)
         }
+        viewModel.stopShare()
+        runCurrent()
+
+        // A full relay keeps the share waiting for room, which the UI tells of until it opens.
+        relay.full = true
+        viewModel.startShare(false)
+        runCurrent()
+        with(viewModel.uiState.value) {
+            assertEquals(ShareUiPhase.Live, phase)
+            assertTrue(waitingForRoom)
+            assertFalse(offline)
+        }
+        relay.full = false
+        runCurrent()
+        assertFalse(viewModel.uiState.value.waitingForRoom)
 
         viewModel.stopShare()
         runCurrent()
