@@ -3,6 +3,7 @@ package com.github.nols1000.hashiru.course.adapter
 import com.github.nols1000.hashiru.course.codec.CourseCodec
 import com.github.nols1000.hashiru.course.domain.Course
 import com.github.nols1000.hashiru.course.port.CourseLibraryPort
+import com.github.nols1000.hashiru.log.log
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
@@ -49,7 +50,7 @@ class FileCourseLibrary : CourseLibraryPort {
         val url = file(course.id) ?: return
         val written = NSString.create(string = CourseCodec.encode(course))
             .writeToURL(url, atomically = true, encoding = NSUTF8StringEncoding, error = null)
-        if (written) courses[course.id] = course else println("FileCourseLibrary: could not write ${course.id}")
+        if (written) courses[course.id] = course else log("FileCourseLibrary", "could not write ${course.id}")
     }
 
     override fun delete(id: String) {

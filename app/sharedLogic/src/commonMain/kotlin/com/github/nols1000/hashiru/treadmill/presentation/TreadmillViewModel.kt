@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.nols1000.hashiru.companion.domain.CompanionState
 import com.github.nols1000.hashiru.companion.engine.WatchRelay
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.share.domain.LiveShareStatus
 import com.github.nols1000.hashiru.share.engine.LiveShareEngine
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
@@ -373,7 +374,7 @@ class TreadmillViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                println("TreadmillViewModel: ${e.message}")
+                log("TreadmillViewModel", "${e.message}")
                 error.value = (e as? TreadmillException)?.error?.takeUnless { it is TreadmillError.CommandFailed } ?: fallback()
             }
         }

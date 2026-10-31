@@ -1,5 +1,6 @@
 package com.github.nols1000.hashiru.treadmill.adapter
 
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.toNSData
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
@@ -107,7 +108,7 @@ class IosTransportAdapter : TreadmillTransportPort {
             } else {
                 withTimeoutOrNull(SCAN_TIMEOUT) { scan() } ?: throw TreadmillException(TreadmillError.PadNotFound())
             }
-            println("$TAG: connecting to ${target.identifier.UUIDString} (pending=$known)")
+            log(TAG, "connecting to ${target.identifier.UUIDString} (pending=$known)")
             bind(target)
             reconnectsAfterDrop = known
             central.connectPeripheral(target, null)
@@ -191,7 +192,7 @@ class IosTransportAdapter : TreadmillTransportPort {
 
     /** Picks up a peripheral handed back by state restoration where the previous process left off. */
     private fun restore(restored: CBPeripheral) {
-        println("$TAG: restored ${restored.identifier.UUIDString} (state ${restored.state})")
+        log(TAG, "restored ${restored.identifier.UUIDString} (state ${restored.state})")
         bind(restored)
         reconnectsAfterDrop = true
         _connectionState.value = ConnectionState.Connecting
@@ -219,7 +220,7 @@ class IosTransportAdapter : TreadmillTransportPort {
             clearConnection()
             return
         }
-        println("$TAG: Bluetooth lost, reconnecting to ${lost.identifier.UUIDString} once it is back")
+        log(TAG, "Bluetooth lost, reconnecting to ${lost.identifier.UUIDString} once it is back")
         lost.delegate = null
         peripheral = null
         writeCharacteristic = null
@@ -237,7 +238,7 @@ class IosTransportAdapter : TreadmillTransportPort {
             clearConnection()
             return
         }
-        println("$TAG: Bluetooth is back, connecting to ${identifier.UUIDString}")
+        log(TAG, "Bluetooth is back, connecting to ${identifier.UUIDString}")
         bind(target)
         central.connectPeripheral(target, null)
     }
@@ -310,7 +311,7 @@ class IosTransportAdapter : TreadmillTransportPort {
 
         @ObjCSignatureOverride
         override fun centralManager(central: CBCentralManager, didDisconnectPeripheral: CBPeripheral, error: NSError?) {
-            println("$TAG: disconnected ${error?.localizedDescription ?: ""}")
+            log(TAG, "disconnected ${error?.localizedDescription ?: ""}")
             if (didDisconnectPeripheral != peripheral) return
             if (reconnectsAfterDrop && pendingSetup == null) {
                 // Dropped after a successful setup: leave a pending connection that completes once the pad is back.

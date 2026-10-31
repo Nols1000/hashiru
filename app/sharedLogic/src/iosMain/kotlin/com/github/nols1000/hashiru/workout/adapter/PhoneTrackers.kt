@@ -1,5 +1,6 @@
 package com.github.nols1000.hashiru.workout.adapter
 
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.workout.domain.HealthEvent
 import com.github.nols1000.hashiru.workout.domain.HeartRateStats
 import com.github.nols1000.hashiru.workout.domain.PadCounters
@@ -177,7 +178,7 @@ internal class LiveWorkout private constructor(
     override fun count(counted: WorkoutEvent.Counted) {
         val samples = pad?.samples(counted).orEmpty()
         if (samples.isEmpty() || !usable) return
-        builder.addSamples(samples) { _, error -> error?.let { println("LiveWorkout: could not add the pad's counts: ${it.localizedDescription}") } }
+        builder.addSamples(samples) { _, error -> error?.let { log("LiveWorkout", "could not add the pad's counts: ${it.localizedDescription}") } }
     }
 
     override fun pause(atMs: Long) {
@@ -252,7 +253,7 @@ internal class LiveWorkout private constructor(
         }
 
         override fun workoutSession(workoutSession: HKWorkoutSession, didFailWithError: NSError) {
-            println("LiveWorkout: session failed: ${didFailWithError.localizedDescription}")
+            log("LiveWorkout", "session failed: ${didFailWithError.localizedDescription}")
             scope.launch { onEnded() }
         }
 
@@ -280,7 +281,7 @@ internal class LiveWorkout private constructor(
             val session = try {
                 HKWorkoutSession(store, configuration, null)
             } catch (e: Exception) {
-                println("LiveWorkout: could not create a session: ${e.message}")
+                log("LiveWorkout", "could not create a session: ${e.message}")
                 return TrackerStart.Failed
             }
             val dataSource = HKLiveWorkoutDataSource(store, configuration)
@@ -299,7 +300,7 @@ internal class LiveWorkout private constructor(
                 workout.builder.beginCollectionWithStartDate(start) { _, error -> cont.resume(error) }
             }
             if (error != null) {
-                println("LiveWorkout: could not begin: ${error.localizedDescription}")
+                log("LiveWorkout", "could not begin: ${error.localizedDescription}")
                 session.end()
                 return TrackerStart.Failed
             }

@@ -1,5 +1,6 @@
 package com.github.nols1000.hashiru.workout.adapter
 
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.workout.domain.Activity
 import com.github.nols1000.hashiru.workout.domain.HealthEvent
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
@@ -221,7 +222,7 @@ class IosHealthKitAdapter(private val simulated: Boolean = false) : HealthSyncPo
             if (launch) {
                 val launched = suspendCancellableCoroutine { cont ->
                     store.startWatchAppWithWorkoutConfiguration(configuration(kind)) { ok, error ->
-                        error?.let { println("IosHealthKitAdapter: no watch workout: ${it.localizedDescription}") }
+                        error?.let { log("IosHealthKitAdapter", "no watch workout: ${it.localizedDescription}") }
                         cont.resume(ok)
                     }
                 }
@@ -369,7 +370,7 @@ class IosHealthKitAdapter(private val simulated: Boolean = false) : HealthSyncPo
                     emit(HealthEvent.Saved(record.id))
                     return
                 }
-                println("IosHealthKitAdapter: the watch did not save the walk (${result?.message ?: "no answer"}); saving here")
+                log("IosHealthKitAdapter", "the watch did not save the walk (${result?.message ?: "no answer"}); saving here")
             } else if (tracker is LiveWorkout && tracker.usable) {
                 try {
                     saveRoute(record, saveLive(tracker, record))
@@ -378,7 +379,7 @@ class IosHealthKitAdapter(private val simulated: Boolean = false) : HealthSyncPo
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    println("IosHealthKitAdapter: live save failed, saving again: ${e.message}")
+                    log("IosHealthKitAdapter", "live save failed, saving again: ${e.message}")
                 }
             } else {
                 tracker?.stop()
@@ -422,7 +423,7 @@ class IosHealthKitAdapter(private val simulated: Boolean = false) : HealthSyncPo
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            println("IosHealthKitAdapter: could not save the route: ${e.message}")
+            log("IosHealthKitAdapter", "could not save the route: ${e.message}")
         }
     }
 

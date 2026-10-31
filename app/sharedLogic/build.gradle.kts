@@ -50,6 +50,8 @@ kotlin {
        }
        withHostTest {
            isIncludeAndroidResources = true
+           // Host tests run against a stubbed android.jar; let android.util.Log do nothing there instead of throwing.
+           isReturnDefaultValues = true
        }
     }
     sourceSets {

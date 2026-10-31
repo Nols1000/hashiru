@@ -8,6 +8,7 @@ import com.github.nols1000.hashiru.companion.domain.WristTelemetry
 import com.github.nols1000.hashiru.companion.port.WatchCompanionPort
 import com.github.nols1000.hashiru.course.codec.CourseCodec
 import com.github.nols1000.hashiru.course.domain.Course
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.toNSData
 import com.github.nols1000.hashiru.workout.domain.HeartRateSample
@@ -54,7 +55,7 @@ class IosWatchConnectivityAdapter : WatchCompanionPort {
     override suspend fun pushTelemetry(telemetry: WristTelemetry) {
         val session = session ?: return
         if (!session.reachable) return
-        session.sendMessageData(encode(telemetry), replyHandler = null) { error -> log("telemetry", error) }
+        session.sendMessageData(encode(telemetry), replyHandler = null) { error -> logFailure("telemetry", error) }
     }
 
     /** The application context as last sent: each update replaces all of it, so every key goes along each time. */
@@ -101,13 +102,13 @@ class IosWatchConnectivityAdapter : WatchCompanionPort {
 
     private fun encode(telemetry: WristTelemetry) = WatchMessageCodec.encode(WatchMessage.Telemetry(telemetry)).toNSData()
 
-    private fun log(what: String, error: NSError?) {
-        if (error != null) println("$TAG: $what failed: ${error.localizedDescription}")
+    private fun logFailure(what: String, error: NSError?) {
+        if (error != null) log(TAG, "$what failed: ${error.localizedDescription}")
     }
 
     private inner class Delegate : NSObject(), WCSessionDelegateProtocol {
         override fun session(session: WCSession, activationDidCompleteWithState: WCSessionActivationState, error: NSError?) {
-            log("activation", error)
+            logFailure("activation", error)
             refresh()
         }
 

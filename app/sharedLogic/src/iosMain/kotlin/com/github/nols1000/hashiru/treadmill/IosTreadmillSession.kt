@@ -7,6 +7,7 @@ import com.github.nols1000.hashiru.course.adapter.FileCourseLibrary
 import com.github.nols1000.hashiru.course.domain.ImportResult
 import com.github.nols1000.hashiru.course.port.CourseLibraryPort
 import com.github.nols1000.hashiru.course.presentation.CourseLibraryViewModel
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.share.adapter.IosBattery
 import com.github.nols1000.hashiru.share.adapter.IosShareRelayAdapter
 import com.github.nols1000.hashiru.share.adapter.MockShareRelayAdapter
@@ -118,7 +119,7 @@ private fun createIosTreadmillSession(simulated: Boolean): TreadmillSession {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                println("WalkingPadBle: automatic connect failed: ${e.message}")
+                log("WalkingPadBle", "automatic connect failed: ${e.message}")
             }
         }
     }

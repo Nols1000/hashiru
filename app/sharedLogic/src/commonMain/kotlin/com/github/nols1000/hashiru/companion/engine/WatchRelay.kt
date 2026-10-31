@@ -5,6 +5,7 @@ import com.github.nols1000.hashiru.companion.domain.WristCommand
 import com.github.nols1000.hashiru.companion.domain.WristNavigation
 import com.github.nols1000.hashiru.companion.domain.WristTelemetry
 import com.github.nols1000.hashiru.companion.port.WatchCompanionPort
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
 import com.github.nols1000.hashiru.treadmill.domain.TreadmillCommand
 import com.github.nols1000.hashiru.treadmill.engine.TreadmillSession
@@ -176,7 +177,7 @@ class WatchRelay internal constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        println("WatchRelay: ${e.message}")
+        log("WatchRelay", "${e.message}")
         null
     }
 

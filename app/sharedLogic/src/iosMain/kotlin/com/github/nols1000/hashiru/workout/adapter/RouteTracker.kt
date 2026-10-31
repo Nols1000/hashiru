@@ -1,5 +1,6 @@
 package com.github.nols1000.hashiru.workout.adapter
 
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.workout.domain.HealthEvent
 import com.github.nols1000.hashiru.workout.domain.RejectReason
 import com.github.nols1000.hashiru.workout.domain.RoutePoint
@@ -97,7 +98,7 @@ internal class RouteTracker private constructor(
         }
 
         override fun locationManager(manager: CLLocationManager, didFailWithError: NSError) {
-            println("RouteTracker: ${didFailWithError.localizedDescription}")
+            log("RouteTracker", "${didFailWithError.localizedDescription}")
         }
     }
 

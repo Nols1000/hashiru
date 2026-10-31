@@ -1,5 +1,6 @@
 package com.github.nols1000.hashiru.workout.adapter
 
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.toByteArray
 import com.github.nols1000.hashiru.toNSData
 import com.github.nols1000.hashiru.workout.codec.SessionMessage
@@ -134,7 +135,7 @@ internal class MirroredWorkout(
         }
         // A paused session collects nothing, so the watch is quiet then.
         if (paused || nowMs() - lastHeardMs < LOST_MS) return
-        println("MirroredWorkout: the watch went quiet; the phone times the walk on")
+        log("MirroredWorkout", "the watch went quiet; the phone times the walk on")
         emit(HealthEvent.TrackingLost(id))
         clock = ActiveClock(lastSeconds * 1000L, nowMs())
     }
@@ -167,7 +168,7 @@ internal class MirroredWorkout(
 
         @ObjCSignatureOverride
         override fun workoutSession(workoutSession: HKWorkoutSession, didFailWithError: NSError) {
-            println("MirroredWorkout: session failed: ${didFailWithError.localizedDescription}")
+            log("MirroredWorkout", "session failed: ${didFailWithError.localizedDescription}")
         }
 
         override fun workoutSession(workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession: List<*>) {
@@ -187,7 +188,7 @@ internal class MirroredWorkout(
         /** Sends [message] without waiting: the callback may never come. */
         fun send(session: HKWorkoutSession, message: SessionMessage) {
             session.sendDataToRemoteWorkoutSession(SessionMessageCodec.encode(message).toNSData()) { _, error ->
-                error?.let { println("MirroredWorkout: could not send ${message::class.simpleName}: ${it.localizedDescription}") }
+                error?.let { log("MirroredWorkout", "could not send ${message::class.simpleName}: ${it.localizedDescription}") }
             }
         }
     }

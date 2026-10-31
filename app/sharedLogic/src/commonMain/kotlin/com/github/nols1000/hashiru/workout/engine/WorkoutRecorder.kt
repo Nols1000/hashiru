@@ -5,6 +5,7 @@ import com.github.nols1000.hashiru.course.domain.Course
 import com.github.nols1000.hashiru.course.domain.NavigationStatus
 import com.github.nols1000.hashiru.course.engine.CourseNavigator
 import com.github.nols1000.hashiru.course.port.CourseLibraryPort
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.treadmill.domain.ConnectionState
 import com.github.nols1000.hashiru.treadmill.engine.TreadmillSession
 import com.github.nols1000.hashiru.workout.domain.BodyWeight
@@ -480,7 +481,7 @@ class WorkoutRecorder internal constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        println("WorkoutRecorder: ${e.message}")
+        log("WorkoutRecorder", "${e.message}")
         null
     }
 

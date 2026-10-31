@@ -2,6 +2,7 @@ package com.github.nols1000.hashiru.workout.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.nols1000.hashiru.log.log
 import com.github.nols1000.hashiru.workout.domain.HeartRateZone
 import com.github.nols1000.hashiru.workout.domain.PastWalk
 import com.github.nols1000.hashiru.workout.domain.RoutePoint
@@ -192,7 +193,7 @@ class HistoryViewModel internal constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        println("HistoryViewModel: ${e.message}")
+        log("HistoryViewModel", "${e.message}")
         null
     }
 
