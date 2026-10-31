@@ -54,7 +54,6 @@ kotlin {
     }
     sourceSets {
         commonMain.dependencies {
-            api(project(":core"))
             api(libs.kotlinx.coroutines.core)
             api(libs.androidx.lifecycle.viewmodel)
         }

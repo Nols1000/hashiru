@@ -1,7 +1,6 @@
 This is a Kotlin Multiplatform project targeting Android, iOS, Web, Server.
 
-* [/app/iosApp](./app/iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project. Its workout
+* [/app/iosApp](./app/iosApp/iosApp) is the iOS app, written in SwiftUI on top of the `SharedLogic` framework. Its workout
   controls can publish an end-to-end encrypted live share for the web viewer. Release builds use
   `https://hashiru.tw-esport.de`. Debug builds accept `HASHIRU_RELAY` and `HASHIRU_VIEWER` process environment
   overrides; in the simulator, live shares go to a simulated relay unless `HASHIRU_RELAY` is set. To run against a
@@ -20,22 +19,12 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web, Server.
   It is built for a static host that passes `/api` on to the relay ([/server](./server/src/main/kotlin)) on the same
   origin, as the cluster's gateway does (see [Deployment](#deployment)). Set `VITE_PMTILES_URL` to a PMTiles extract for a basemap; without it, routes show on a plain background.
 
-* [/app/sharedLogic](./app/sharedLogic/src) is for the code that will be shared between app targets in the project.
-  The most important subfolder is [commonMain](./app/sharedLogic/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+* [/app/sharedLogic](./app/sharedLogic/src) is the logic every app shares: the treadmill, workout, course,
+  companion and live-share code in [commonMain](./app/sharedLogic/src/commonMain/kotlin), with adapters for each
+  platform in `androidMain`, `iosMain` and `jsMain`. It builds the `SharedLogic` framework for iOS and the Kotlin/JS
+  library for the web viewer.
 
-* [/app/sharedUI](./app/sharedUI/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./app/sharedUI/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./app/sharedUI/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./app/sharedUI/src/jvmMain/kotlin)
-    folder is the appropriate location.
-
-* [/core](./core/src) is for the code that will be shared between all targets in the project.
-  The most important subfolder is [commonMain](./core/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+* [/app/sharedUI](./app/sharedUI/src) is the Android app's Compose UI: its screens and theme, on top of sharedLogic.
 
 * [/server](./server/src/main/kotlin) is for the Ktor server application.
 

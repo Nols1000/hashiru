@@ -33,7 +33,7 @@ fun Application.module(store: ShareStore = ShareStore()) {
     }
     routing {
         get("/") {
-            call.respondText(sayHello("Ktor"))
+            call.respondText("ok")
         }
         shareRoutes(store)
     }
