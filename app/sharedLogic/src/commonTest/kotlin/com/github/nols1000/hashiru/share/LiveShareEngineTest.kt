@@ -189,6 +189,37 @@ class LiveShareEngineTest {
     }
 
     @Test
+    fun theNextWorkoutOffersANewShare() = runTest {
+        workouts.value = walking(3)
+        val engine = engine()
+        engine.share()
+        runCurrent()
+        workouts.value = WorkoutStatus()
+        runCurrent()
+        assertIs<LiveShareStatus.Ended>(engine.status.value)
+
+        workouts.value = walking(1)
+        runCurrent()
+        assertEquals(LiveShareStatus.Off, engine.status.value)
+    }
+
+    @Test
+    fun aShareStartedBetweenWorkoutsOutlivesTheEndedOne() = runTest {
+        workouts.value = walking(3)
+        val engine = engine()
+        engine.share()
+        runCurrent()
+        workouts.value = WorkoutStatus()
+        runCurrent()
+
+        engine.share()
+        runCurrent()
+        workouts.value = walking(1)
+        runCurrent()
+        assertIs<LiveShareStatus.Live>(engine.status.value)
+    }
+
+    @Test
     fun aShareStartedBeforeTheWorkoutWaitsForIt() = runTest {
         val engine = engine()
         engine.share()

@@ -172,7 +172,11 @@ class LiveShareEngine internal constructor(
     private fun onWorkout(status: WorkoutStatus) {
         val inProgress = status.phase != WorkoutPhase.Idle
         if (inProgress) lastActive = status
-        val active = share ?: return
+        val active = share ?: run {
+            // The share that ended went unseen behind the summary; the next workout offers a new one.
+            if (inProgress) dismissEnded()
+            return
+        }
         if (inProgress && !active.sawWorkout) {
             active.sawWorkout = true
             checkpoint(active)
