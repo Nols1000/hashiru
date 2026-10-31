@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -207,8 +208,7 @@ class LiveShareEngineTest {
         assertNull(publishes.last().message().state.heartRateBpm)
         engine.stopSharing()
 
-        engine.setShareHeartRateByDefault(true)
-        engine.share()
+        engine.share(includeHeartRate = true)
         runCurrent()
         assertEquals(120, publishes.last().message().state.heartRateBpm)
         engine.stopSharing()
@@ -216,6 +216,28 @@ class LiveShareEngineTest {
         engine.share(includeHeartRate = false)
         runCurrent()
         assertNull(publishes.last().message().state.heartRateBpm)
+    }
+
+    @Test
+    fun theLastChoiceOfHeartRateIsTheNextDefault() = runTest {
+        workouts.value = walking(2)
+        val engine = engine()
+        assertFalse(engine.shareHeartRateByDefault.value)
+
+        engine.share(includeHeartRate = true)
+        assertTrue(engine.shareHeartRateByDefault.value)
+        engine.stopSharing()
+        // It outlives the process, as does the choice to leave heart rate out.
+        assertTrue(engine().shareHeartRateByDefault.value)
+        engine.share()
+        runCurrent()
+        assertEquals(120, publishes.last().message().state.heartRateBpm)
+        engine.stopSharing()
+
+        engine.share(includeHeartRate = false)
+        assertFalse(engine.shareHeartRateByDefault.value)
+        engine.stopSharing()
+        assertFalse(engine().shareHeartRateByDefault.value)
     }
 
     @Test

@@ -552,6 +552,11 @@ private struct ShareControls: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                Text(state.includeHeartRate
+                     ? String(localized: "Heart rate shared")
+                     : String(localized: "Heart rate not shared"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 if state.offline {
                     Text("Reconnecting…")
                         .font(.footnote)

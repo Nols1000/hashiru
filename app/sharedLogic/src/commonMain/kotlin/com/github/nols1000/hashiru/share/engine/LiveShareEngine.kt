@@ -91,7 +91,7 @@ class LiveShareEngine internal constructor(
 
     private val _shareHeartRateByDefault = MutableStateFlow(storage.getString(KEY_HEART_RATE) == "1")
 
-    /** Whether new shares include heart rate; each share can differ. */
+    /** Whether new shares include heart rate: the choice of the last share, which each share can change. */
     val shareHeartRateByDefault: StateFlow<Boolean> = _shareHeartRateByDefault.asStateFlow()
 
     private var share: ActiveShare? = null
@@ -109,9 +109,11 @@ class LiveShareEngine internal constructor(
         scope.launch(start = CoroutineStart.UNDISPATCHED) { workouts.collect(::onWorkout) }
     }
 
-    /** Starts sharing the workout in progress, or the next one; [includeHeartRate] overrides the default for this share. */
+    /** Starts sharing the workout in progress, or the next one; [includeHeartRate] becomes the default for the next share. */
     fun share(includeHeartRate: Boolean = _shareHeartRateByDefault.value) {
         if (share != null) return
+        storage.putString(KEY_HEART_RATE, if (includeHeartRate) "1" else null)
+        _shareHeartRateByDefault.value = includeHeartRate
         val id = Base64Url.encode(cipher.randomBytes(ID_BYTES))
         val alias = "$ALIAS_PREFIX$id"
         val baseKey = cipher.randomBytes(SFrame.KEY_BYTES)
@@ -145,11 +147,6 @@ class LiveShareEngine internal constructor(
     /** Hides an ended share. */
     fun dismissEnded() {
         if (_status.value is LiveShareStatus.Ended) _status.value = LiveShareStatus.Off
-    }
-
-    fun setShareHeartRateByDefault(include: Boolean) {
-        storage.putString(KEY_HEART_RATE, if (include) "1" else null)
-        _shareHeartRateByDefault.value = include
     }
 
     private fun restore() {
