@@ -547,7 +547,7 @@ private struct ShareControls: View {
                     Image(systemName: "person.2")
                     Text(state.watchers == 0
                          ? String(localized: "No one watching yet")
-                         : String(format: String(localized: "%d watching"), Int(state.watchers)))
+                         : String(localized: "\(Int(state.watchers)) watching"))
                     Spacer(minLength: 0)
                 }
                 .font(.subheadline)

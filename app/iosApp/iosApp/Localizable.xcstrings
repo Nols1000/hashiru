@@ -39,8 +39,27 @@
     "%d m away" : {
 
     },
-    "%d watching" : {
-
+    "%lld watching" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld watching"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld watching"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "Access is off. Walks stay on this iPhone." : {
 
