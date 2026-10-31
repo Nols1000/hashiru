@@ -142,7 +142,8 @@ final class ShareCipher: NSObject, ShareCipherPort {
         ]
     }
 
-    private static func rawSignature(_ der: Data) -> Data? {
+    /// A DER ECDSA signature as WebCrypto's raw r ‖ s, 32 bytes each; internal for the tests.
+    static func rawSignature(_ der: Data) -> Data? {
         let bytes = [UInt8](der)
         guard bytes.count >= 8, bytes[0] == 0x30, Int(bytes[1]) == bytes.count - 2 else { return nil }
         let offset = 2

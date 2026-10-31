@@ -71,3 +71,32 @@ kotlin {
         }
     }
 }
+
+// The phone–watch wire format's golden vectors, which the iOS app's tests read too. commonTest can't read
+// files on every target, so the JSON becomes a Kotlin constant: maps, lists, strings, numbers and booleans.
+val watchCodecVectors = tasks.register("generateWatchCodecVectors") {
+    val fixture = rootProject.layout.projectDirectory.file("fixtures/watch-codec-vectors.json")
+    val output = layout.buildDirectory.dir("generated/watchCodecVectors/kotlin")
+    inputs.file(fixture)
+    outputs.dir(output)
+    doLast {
+        fun literal(value: Any?): String = when (value) {
+            null -> "null"
+            is String -> "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
+            is Map<*, *> -> value.entries.joinToString(", ", "mapOf(", ")") { "${literal(it.key)} to ${literal(it.value)}" }
+            is List<*> -> value.joinToString(", ", "listOf(", ")") { literal(it) }
+            is Boolean, is Int -> value.toString()
+            else -> error("Unsupported value in the codec vectors: $value")
+        }
+        val json = groovy.json.JsonSlurper().parse(fixture.asFile)
+        output.get().file("WatchCodecVectors.kt").asFile.apply { parentFile.mkdirs() }.writeText(
+            "// Generated from fixtures/watch-codec-vectors.json by :app:sharedLogic:generateWatchCodecVectors.\n" +
+                "package com.github.nols1000.hashiru.companion\n\n" +
+                "internal val watchCodecVectors: Map<String, Any?> = ${literal(json)}\n",
+        )
+    }
+}
+
+kotlin.sourceSets.commonTest {
+    kotlin.srcDir(watchCodecVectors)
+}

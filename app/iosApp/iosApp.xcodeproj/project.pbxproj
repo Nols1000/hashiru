@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5A1C0E7B2F3D4A6B8C9D0E2A /* hashiru Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 5A1C0E7B2F3D4A6B8C9D0E1F /* hashiru Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		7E57A11C0000000000000003 /* watch-codec-vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E57A11C0000000000000002 /* watch-codec-vectors.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -17,6 +18,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 5A1C0E7B2F3D4A6B8C9D0E22;
 			remoteInfo = watchApp;
+		};
+		7E57A11C0000000000000004 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E8692697B01BC3613A85AE06 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A0AF63080CE9170914A76BD6;
+			remoteInfo = iosApp;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -37,6 +45,8 @@
 /* Begin PBXFileReference section */
 		4E378431FA71F6984ED1F7AF /* hashiru.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = hashiru.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A1C0E7B2F3D4A6B8C9D0E1F /* hashiru Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "hashiru Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		7E57A11C0000000000000001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7E57A11C0000000000000002 /* watch-codec-vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "watch-codec-vectors.json"; path = "../../fixtures/watch-codec-vectors.json"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -54,6 +64,13 @@
 			);
 			target = 5A1C0E7B2F3D4A6B8C9D0E22 /* watchApp */;
 		};
+		7E57A11C0000000000000007 /* Exceptions for "watchApp" folder in "iosAppTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				WatchCodec.swift,
+			);
+			target = 7E57A11C0000000000000008 /* iosAppTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -69,8 +86,14 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				5A1C0E7B2F3D4A6B8C9D0E21 /* Exceptions for "watchApp" folder in "watchApp" target */,
+				7E57A11C0000000000000007 /* Exceptions for "watchApp" folder in "iosAppTests" target */,
 			);
 			path = watchApp;
+			sourceTree = "<group>";
+		};
+		7E57A11C0000000000000006 /* iosAppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = iosAppTests;
 			sourceTree = "<group>";
 		};
 		CC7379A3BA33A11F6EAAE821 /* Configuration */ = {
@@ -81,6 +104,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		7E57A11C000000000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5A1C0E7B2F3D4A6B8C9D0E24 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -104,6 +134,8 @@
 				CC7379A3BA33A11F6EAAE821 /* Configuration */,
 				17F3EB2E9C1A1A2532EB234F /* iosApp */,
 				5A1C0E7B2F3D4A6B8C9D0E20 /* watchApp */,
+				7E57A11C0000000000000006 /* iosAppTests */,
+				7E57A11C0000000000000002 /* watch-codec-vectors.json */,
 				15B2C801E9564DF595CC423E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -113,6 +145,7 @@
 			children = (
 				4E378431FA71F6984ED1F7AF /* hashiru.app */,
 				5A1C0E7B2F3D4A6B8C9D0E1F /* hashiru Watch App.app */,
+				7E57A11C0000000000000001 /* iosAppTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -120,6 +153,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		7E57A11C0000000000000008 /* iosAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7E57A11C000000000000000E /* Build configuration list for PBXNativeTarget "iosAppTests" */;
+			buildPhases = (
+				7E57A11C0000000000000009 /* Sources */,
+				7E57A11C000000000000000A /* Frameworks */,
+				7E57A11C000000000000000B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7E57A11C0000000000000005 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7E57A11C0000000000000006 /* iosAppTests */,
+			);
+			name = iosAppTests;
+			packageProductDependencies = (
+			);
+			productName = iosAppTests;
+			productReference = 7E57A11C0000000000000001 /* iosAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		5A1C0E7B2F3D4A6B8C9D0E22 /* watchApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 5A1C0E7B2F3D4A6B8C9D0E28 /* Build configuration list for PBXNativeTarget "watchApp" */;
@@ -177,6 +233,10 @@
 				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 2710;
 				TargetAttributes = {
+					7E57A11C0000000000000008 = {
+						CreatedOnToolsVersion = 27.1;
+						TestTargetID = A0AF63080CE9170914A76BD6;
+					};
 					5A1C0E7B2F3D4A6B8C9D0E22 = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -201,11 +261,20 @@
 			targets = (
 				A0AF63080CE9170914A76BD6 /* iosApp */,
 				5A1C0E7B2F3D4A6B8C9D0E22 /* watchApp */,
+				7E57A11C0000000000000008 /* iosAppTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		7E57A11C000000000000000B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7E57A11C0000000000000003 /* watch-codec-vectors.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5A1C0E7B2F3D4A6B8C9D0E25 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -245,6 +314,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7E57A11C0000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		259D481602E1B0FEB192A93F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -267,9 +343,44 @@
 			target = 5A1C0E7B2F3D4A6B8C9D0E22 /* watchApp */;
 			targetProxy = 5A1C0E7B2F3D4A6B8C9D0E2B /* PBXContainerItemProxy */;
 		};
+		7E57A11C0000000000000005 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A0AF63080CE9170914A76BD6 /* iosApp */;
+			targetProxy = 7E57A11C0000000000000004 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		7E57A11C000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_IDENTIFIER).tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/hashiru.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/hashiru";
+			};
+			name = Debug;
+		};
+		7E57A11C000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_IDENTIFIER).tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/hashiru.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/hashiru";
+			};
+			name = Release;
+		};
 		036BD7453FA4D6F4CA8335BD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -524,6 +635,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		7E57A11C000000000000000E /* Build configuration list for PBXNativeTarget "iosAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E57A11C000000000000000C /* Debug */,
+				7E57A11C000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		4565FC2CE8921B38A4D88460 /* Build configuration list for PBXProject "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

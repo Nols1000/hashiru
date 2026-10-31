@@ -56,6 +56,19 @@ jobs:
           -destination 'generic/platform=iOS Simulator'
           ARCHS=arm64
           CODE_SIGNING_ALLOWED=NO
+      # On the first available iPhone simulator, so a new runner image doesn't break the step. Signed to run
+      # locally rather than unsigned: without entitlements the simulator's keychain is closed to the share key test.
+      - name: Test iOS app
+        run: |
+          device=$(xcrun simctl list devices available | grep -m1 -E '^ +iPhone' | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')
+          xcodebuild test \
+            -project app/iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$device" \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=
 
   # The live-share viewer, as the KMP wizard's web template builds it. Node and npm come with the runner;
   # dependencies are installed from the lockfile without running their install scripts.
